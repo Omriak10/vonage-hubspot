@@ -1,0 +1,29 @@
+# Copy to vcr.yml and fill in. vcr.yml is git-ignored because it holds secrets.
+project:
+    name: vonage-hubspot
+instance:
+    name: production
+    runtime: nodejs22
+    region: aws.euw1
+    # Application created with `vcr app create` (must be VCR-registered)
+    application-id: 00000000-0000-0000-0000-000000000000
+    entrypoint: [node, server.js]
+    scaling:
+        min-scale: 1
+    environment:
+        # The public host VCR prints after the first deploy (no trailing slash)
+        - name: BASE_URL
+          value: "https://YOUR-BACKEND-HOST"
+        # Any long random string; protects admin routes
+        - name: ADMIN_KEY
+          value: "change-me-to-a-long-random-string"
+        # From the HubSpot app (developer account > Apps > your app > Auth)
+        - name: HS_CLIENT_ID
+          value: "your-hubspot-client-id"
+        - name: HS_CLIENT_SECRET
+          value: "your-hubspot-client-secret"
+        # Keep in sync with hubspot-project/src/app/app-hsmeta.json
+        - name: HS_SCOPES
+          value: "oauth crm.objects.contacts.read crm.objects.contacts.write crm.lists.read crm.objects.leads.read"
+        - name: HS_OPTIONAL_SCOPES
+          value: "conversations.read conversations.custom_channels.read conversations.custom_channels.write crm.objects.custom.read"

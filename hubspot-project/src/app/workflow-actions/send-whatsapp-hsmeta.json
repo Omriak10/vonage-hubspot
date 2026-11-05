@@ -1,0 +1,58 @@
+{
+  "uid": "vonage_wf_send_whatsapp",
+  "type": "workflow-action",
+  "config": {
+    "actionUrl": "https://YOUR-BACKEND-HOST/2v/api/workflow/send?channel=whatsapp",
+    "isPublished": true,
+    "supportedClients": [{ "client": "WORKFLOWS" }],
+    "objectTypes": ["CONTACT"],
+    "inputFields": [
+      {
+        "typeDefinition": { "name": "templateName", "type": "string", "fieldType": "text" },
+        "supportedValueTypes": ["STATIC_VALUE"],
+        "isRequired": true
+      },
+      {
+        "typeDefinition": { "name": "language", "type": "string", "fieldType": "text" },
+        "supportedValueTypes": ["STATIC_VALUE"],
+        "isRequired": false
+      },
+      {
+        "typeDefinition": { "name": "var1", "type": "string", "fieldType": "text" },
+        "supportedValueTypes": ["STATIC_VALUE"],
+        "isRequired": false
+      },
+      {
+        "typeDefinition": { "name": "var2", "type": "string", "fieldType": "text" },
+        "supportedValueTypes": ["STATIC_VALUE"],
+        "isRequired": false
+      },
+      {
+        "typeDefinition": { "name": "var3", "type": "string", "fieldType": "text" },
+        "supportedValueTypes": ["STATIC_VALUE"],
+        "isRequired": false
+      }
+    ],
+    "labels": {
+      "en": {
+        "actionName": "Send WhatsApp template via Vonage",
+        "actionDescription": "Sends an approved WhatsApp template to the enrolled contact from your connected Vonage WhatsApp number. Template messages work outside the 24-hour session window.",
+        "actionCardContent": "Send WhatsApp template {{templateName}}",
+        "inputFieldLabels": {
+          "templateName": "Template name",
+          "language": "Template language (default: en)",
+          "var1": "Variable {{1}}",
+          "var2": "Variable {{2}}",
+          "var3": "Variable {{3}}"
+        },
+        "inputFieldDescriptions": {
+          "templateName": "The exact name of an APPROVED template on your WABA (see the Templates card).",
+          "language": "Language code the template was approved in, e.g. en or en_GB.",
+          "var1": "Value for the template's first placeholder, if it has one.",
+          "var2": "Value for the second placeholder.",
+          "var3": "Value for the third placeholder."
+        }
+      }
+    }
+  }
+}

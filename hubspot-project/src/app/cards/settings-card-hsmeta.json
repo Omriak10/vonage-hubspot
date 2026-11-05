@@ -1,0 +1,12 @@
+{
+  "uid": "vonage_settings_card",
+  "type": "card",
+  "config": {
+    "name": "Vonage Settings",
+    "location": "crm.record.tab",
+    "entrypoint": "/app/cards/SettingsCard.tsx",
+    "objectTypes": [
+      "contacts"
+    ]
+  }
+}

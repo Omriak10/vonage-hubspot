@@ -1,0 +1,12 @@
+{
+  "uid": "vonage_card",
+  "type": "card",
+  "config": {
+    "name": "Vonage Messaging",
+    "location": "crm.record.tab",
+    "entrypoint": "/app/cards/NewCard.tsx",
+    "objectTypes": [
+      "contacts"
+    ]
+  }
+}

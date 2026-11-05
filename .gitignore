@@ -1,0 +1,9 @@
+node_modules/
+*.key
+*.pem
+vcr-backend/vcr.yml
+hubspot.config.yml
+.env
+*.log
+.DS_Store
+Thumbs.db

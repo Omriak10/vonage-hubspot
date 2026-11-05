@@ -1,0 +1,12 @@
+{
+  "uid": "vonage_lead_card",
+  "type": "card",
+  "config": {
+    "name": "Vonage (message & call)",
+    "location": "crm.preview",
+    "entrypoint": "/app/cards/LeadCard.tsx",
+    "objectTypes": [
+      "LEAD"
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "uid": "vonage_app",
+  "type": "app",
+  "config": {
+    "description": "Send WhatsApp, RCS and SMS to your HubSpot contacts via Vonage, with replies logged to the contact timeline.",
+    "name": "Vonage Messaging",
+    "distribution": "marketplace",
+    "auth": {
+      "type": "oauth",
+      "redirectUrls": [
+        "https://YOUR-BACKEND-HOST/2v/oauth/callback"
+      ],
+      "requiredScopes": [
+        "oauth",
+        "crm.objects.contacts.read",
+        "crm.objects.contacts.write",
+        "crm.lists.read",
+        "crm.objects.leads.read"
+      ],
+      "optionalScopes": [
+        "conversations.read",
+        "conversations.custom_channels.read",
+        "conversations.custom_channels.write",
+        "crm.objects.custom.read"
+      ],
+      "conditionallyRequiredScopes": []
+    },
+    "permittedUrls": {
+      "fetch": [
+        "https://api.hubapi.com",
+        "https://YOUR-BACKEND-HOST"
+      ],
+      "iframe": [
+        "https://YOUR-BACKEND-HOST"
+      ],
+      "img": []
+    },
+    "support": {
+      "supportEmail": "support@example.com",
+      "documentationUrl": "https://YOUR-BACKEND-HOST/2v/guide",
+      "supportUrl": "https://YOUR-BACKEND-HOST/2v/guide"
+    }
+  }
+}

@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WhatsApp from HubSpot with Vonage - the practical guide</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+  @page { size: A4; margin: 0; }
+  :root{ --ink:#0b0b0c; --ink2:#43464d; --ink3:#767b85; --rule:#e5e3ec; --wash:#f6f5f9;
+         --v:#871fff; --vdeep:#5f14b8; --vsoft:#f3ebff; --wa:#1fa855; --wasoft:#e8f7ee; --bad:#b0202c; --badsoft:#fdecee; --warn:#8a5a00; --warnsoft:#fdf3e0;
+         --sans:'Inter',-apple-system,'Segoe UI',Roboto,sans-serif; --disp:'Space Grotesk','Inter',sans-serif }
+  *{box-sizing:border-box} html,body{margin:0;background:#fff;color:var(--ink);font-family:var(--sans);font-size:11.2pt;line-height:1.5}
+  .page{width:210mm;height:297mm;padding:18mm 18mm 16mm;position:relative;page-break-after:always;overflow:hidden}
+  .page:last-child{page-break-after:auto}
+  .foot{position:absolute;left:18mm;right:18mm;bottom:9mm;display:flex;justify-content:space-between;font-size:8.5pt;color:var(--ink3);border-top:1px solid var(--rule);padding-top:5px}
+  .eyebrow{font-family:var(--disp);font-size:8.5pt;letter-spacing:.16em;text-transform:uppercase;color:var(--vdeep);font-weight:600;margin:0 0 5px}
+  h1{font-family:var(--disp);font-size:30pt;line-height:1.08;margin:0 0 10px;letter-spacing:-.02em;font-weight:700}
+  h2{font-family:var(--disp);font-size:19pt;margin:0 0 4px;letter-spacing:-.015em;font-weight:700}
+  h3{font-family:var(--disp);font-size:12.5pt;margin:16px 0 5px;font-weight:600}
+  p{margin:0 0 8px} .lede{color:var(--ink2);font-size:11.5pt;margin-bottom:14px;max-width:62ch}
+  ul,ol{margin:0 0 8px;padding-left:18px} li{margin-bottom:3px}
+  .cover{background:var(--ink);color:#fff}
+  .cover h1{font-size:36pt;max-width:16ch;margin-top:26mm} .cover p{color:#c9ccd4;font-size:12.5pt;max-width:56ch}
+  .cover .eyebrow{color:#c5a3ff} .cover .foot{color:#8e939d;border-color:#2b2b31}
+  .brandrow{display:flex;align-items:center;gap:10px;font-family:var(--disp);font-size:9pt;letter-spacing:.2em;text-transform:uppercase;color:#a9adb8}
+  .brandrow .dot{width:7px;height:7px;border-radius:50%;background:var(--v)}
+  .toc{margin-top:16mm;border-top:1px solid #2b2b31;padding-top:10px;columns:2;column-gap:28px;font-size:10.5pt;color:#e7e7ea}
+  .toc div{break-inside:avoid;padding:4px 0;display:flex;gap:10px} .toc b{color:#c5a3ff;font-family:var(--disp);min-width:18px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px} .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .card{border:1px solid var(--rule);border-radius:10px;padding:11px 13px;background:#fff}
+  .card h4{font-family:var(--disp);font-size:11pt;margin:0 0 4px;font-weight:600} .card p{font-size:9.9pt;color:var(--ink2);margin:0;line-height:1.45}
+  .callout{border-left:4px solid var(--v);background:var(--vsoft);padding:9px 12px;border-radius:0 8px 8px 0;margin:10px 0;font-size:10.5pt}
+  .callout.bad{border-color:var(--bad);background:var(--badsoft)} .callout.ok{border-color:var(--wa);background:var(--wasoft)} .callout.warn{border-color:var(--warn);background:var(--warnsoft)}
+  .callout b:first-child{font-family:var(--disp)}
+  table{width:100%;border-collapse:collapse;font-size:10pt;margin:6px 0 10px}
+  th{text-align:left;font-family:var(--disp);font-size:9pt;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);font-weight:600;padding:6px 8px;border-bottom:1.5px solid var(--ink)}
+  td{padding:7px 8px;border-bottom:1px solid var(--rule);vertical-align:top}
+  td.do{color:#0b7a52;font-weight:600;white-space:nowrap} td.dont{color:var(--bad);font-weight:600;white-space:nowrap}
+  .tag{display:inline-block;font-family:var(--disp);font-size:8.5pt;font-weight:600;padding:1px 7px;border-radius:999px;border:1px solid var(--rule);background:var(--wash);color:var(--ink2)}
+  .tag.ok{background:var(--wasoft);border-color:#b7e0cd;color:#0b7a52} .tag.bad{background:var(--badsoft);border-color:#f3c3c8;color:var(--bad)} .tag.warn{background:var(--warnsoft);border-color:#f0dcae;color:var(--warn)}
+  .bubble{background:#e7ffdb;border-radius:10px;padding:9px 12px;font-size:10.2pt;max-width:78%;margin:6px 0;box-shadow:0 1px 1px rgba(0,0,0,.08);position:relative}
+  .bubble .h{font-weight:700;margin-bottom:3px} .bubble .f{color:var(--ink3);font-size:9pt;margin-top:4px} .bubble .b{margin-top:6px;border-top:1px solid #cfe9c3;padding-top:5px;color:#0a6fd6;text-align:center;font-weight:500}
+  .chat{background:#efe7dd;border-radius:12px;padding:10px 12px}
+  .steps{counter-reset:s;list-style:none;padding:0} .steps li{counter-increment:s;display:grid;grid-template-columns:24px 1fr;gap:9px;margin-bottom:7px}
+  .steps li::before{content:counter(s);width:22px;height:22px;border-radius:50%;background:var(--vsoft);color:var(--vdeep);font-family:var(--disp);font-weight:700;font-size:9.5pt;display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .steps b{display:block}
+  code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:9.3pt;background:var(--wash);padding:1px 5px;border-radius:4px;word-break:break-word}
+  table.rep{font-size:8.6pt;margin-top:2px} table.rep td:first-child{width:42%} table.rep td{padding:3px 5px}
+  .steps li span{min-width:0}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:10.2pt} .kv dt{color:var(--ink3)} .kv dd{margin:0}
+  .small{font-size:9.6pt;color:var(--ink3)}
+  .shot{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(220px,1fr);gap:14px;align-items:start;margin:10px 0 14px}
+  .shot.wide{grid-template-columns:1fr} .shot img{width:100%;height:auto;display:block;border:1px solid var(--rule);border-radius:8px}
+  .shot ol{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
+  .shot li{display:grid;grid-template-columns:20px 1fr;gap:7px;font-size:9.8pt;line-height:1.45}
+  .shot li .n{width:18px;height:18px;border-radius:50%;background:var(--v);color:#fff;font-family:var(--disp);font-size:8.5pt;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px}
+  .cap{font-size:9pt;color:var(--ink3);margin:4px 0 0}
+  .phones{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:8px 0 12px}
+  .phone{background:#0b0b0c;border-radius:22px;padding:9px;box-shadow:0 10px 24px -18px rgba(0,0,0,.6)}
+  .phone .scr{background:#efe7dd;border-radius:15px;overflow:hidden;font-size:8.6pt;line-height:1.35;min-height:118mm;display:flex;flex-direction:column}
+  .phone .top{background:#075e54;color:#fff;padding:7px 9px;display:flex;align-items:center;gap:7px;font-weight:600;font-size:8.8pt}
+  .phone .top .av{width:20px;height:20px;border-radius:50%;background:#128c7e;display:inline-block}
+  .phone .top .vf{margin-left:auto;font-size:8pt;color:#b7e0cd}
+  .phone .msgs{padding:8px 7px;display:flex;flex-direction:column;gap:5px;flex:1}
+  .phone .m{max-width:88%;border-radius:8px;padding:5px 7px;background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.08);position:relative}
+  .phone .m.me{background:#dcf8c6;align-self:flex-end}
+  .phone .m .hd{font-weight:700;margin-bottom:2px} .phone .m .ft{color:#6b7280;font-size:7.6pt;margin-top:3px}
+  .phone .m .bt{margin-top:5px;border-top:1px solid #e5e7eb;padding-top:4px;text-align:center;color:#0a7ad6;font-weight:500}
+  .phone .m .t{text-align:right;color:#8a9199;font-size:7.3pt;margin-top:2px} .phone .m .t.blue{color:#34b7f1}
+  .phone .sys{align-self:center;background:#fdf3d7;color:#6b5a1e;font-size:7.6pt;padding:3px 7px;border-radius:6px;text-align:center;max-width:92%}
+  .phone .bar{background:#f0f0f0;padding:6px 8px;display:flex;gap:6px;align-items:center}
+  .phone .bar .in{flex:1;background:#fff;border-radius:14px;padding:4px 9px;color:#9aa0a6}
+  .phone .bar .snd{width:22px;height:22px;border-radius:50%;background:#128c7e}
+  .ptitle{font-family:var(--disp);font-size:10.2pt;font-weight:600;margin:0 0 5px}
+  .wf{border:1px solid var(--rule);border-radius:10px;background:#fff;font-size:8.8pt;max-width:88mm}
+  .wf .wh{background:#f5f8fa;border-bottom:1px solid var(--rule);padding:8px 11px;font-weight:600;font-family:var(--disp);font-size:10pt;display:flex;align-items:center;gap:8px}
+  .wf .wh .ic{width:18px;height:18px;border-radius:4px;background:var(--v);display:inline-block}
+  .wf .wb{padding:7px 10px} .wf label{display:block;font-size:8.2pt;font-weight:600;color:var(--ink2);margin:4px 0 1px}
+  .wf .in{border:1px solid #cbd6e2;border-radius:3px;padding:2px 6px;background:#fff;min-height:17px;color:var(--ink)} .wf .in.empty{color:#9aa0a6}
+  .wf .hint{font-size:8pt;color:var(--ink3);margin-top:2px}
+  .wf .btns{display:flex;gap:8px;margin-top:10px} .wf .b{padding:5px 12px;border-radius:3px;font-size:9pt;font-weight:600;border:1px solid #cbd6e2} .wf .b.p{background:#ff7a59;border-color:#ff7a59;color:#fff}
+
+</style>
+</head>
+<body>
+
+<!-- 1 COVER -->
+<div class="page cover">
+  <div class="brandrow"><span class="dot"></span> Vonage Messaging for HubSpot</div>
+  <h1>WhatsApp from HubSpot, done right</h1>
+  <p>A practical guide for the people who send the messages: how WhatsApp templates work, how to get them approved first time, where every Vonage screen is in HubSpot (annotated), what the customer sees on their phone, calls, SMS and RCS, workflow actions, and the handful of mistakes that make a message "sent" but never arrive.</p>
+  <p style="margin-top:16px;font-size:10.5pt;color:#8e939d">Written for marketing, support and operations teams. No technical knowledge needed. Ten minutes to read; keep the last page pinned next to your desk.</p>
+  <div class="toc">
+    <div><b>1</b> Three things to know before you send anything</div>
+    <div><b>2</b> Templates: what they are and what they are made of</div>
+    <div><b>3</b> Categories, languages and variables</div>
+    <div><b>4</b> Getting a template approved first time</div>
+    <div><b>5</b> Using the integration in HubSpot</div>
+    <div><b>6</b> Where everything is - the screens, annotated</div>
+    <div><b>7</b> What the customer sees on WhatsApp</div>
+    <div><b>8</b> Calls, SMS and RCS</div>
+    <div><b>9</b> Workflow actions - automatic sending</div>
+    <div><b>10</b> Do and don't</div>
+    <div><b>11</b> When something goes wrong</div>
+    <div><b>12</b> One-page checklist</div>
+  </div>
+  <div class="foot"><span>Vonage Messaging for HubSpot - WhatsApp guide</span><span>October 2026 - v2</span></div>
+</div>
+
+<!-- 2 BASICS -->
+<div class="page">
+  <p class="eyebrow">1 - Before you send anything</p>
+  <h2>Three things that explain almost every problem</h2>
+  <p class="lede">WhatsApp is not SMS. Meta (the company behind WhatsApp) decides what a business may send and when. Vonage carries the message; HubSpot is where you work. Once these three rules are clear, the rest is easy.</p>
+
+  <div class="grid3">
+    <div class="card"><h4>1. The 24-hour window</h4><p>When a customer writes to you, a <b>24-hour conversation window</b> opens. Inside it you can send free text, images, anything. When it closes - or if the customer never wrote first - you can <b>only</b> send an approved <b>template</b>.</p></div>
+    <div class="card"><h4>2. Templates are approved by Meta</h4><p>Every template is reviewed by WhatsApp before it can be used, per language. Vonage submits it for you and shows you the status; neither Vonage nor the integration can skip or speed up the review.</p></div>
+    <div class="card"><h4>3. The customer must have opted in</h4><p>You may only message people who agreed to receive WhatsApp messages from you (a tick box, a form, a reply). Messaging people who did not opt in gets your number's quality rating lowered and, eventually, blocked.</p></div>
+  </div>
+
+  <h3>Who does what</h3>
+  <table>
+    <tr><th>Party</th><th>Role</th><th>What you see from them</th></tr>
+    <tr><td><b>WhatsApp / Meta</b></td><td>Owns the rules. Approves or rejects templates, delivers to the handset, rates your number's quality.</td><td>Template status (Approved / Rejected / Paused), delivered and read ticks, the customer's replies.</td></tr>
+    <tr><td><b>Vonage</b></td><td>Your WhatsApp number and Business Account live here. Carries every message in and out, holds the templates, bills per conversation.</td><td>The Vonage dashboard (logs, balance), template submission results, error codes.</td></tr>
+    <tr><td><b>HubSpot + the Vonage integration</b></td><td>Where you work: contact cards, Inbox, Templates card, workflow actions. Talks to Vonage using <b>your</b> Vonage account.</td><td>The Vonage cards on contacts, the Settings page, workflow action results.</td></tr>
+  </table>
+
+  <div class="callout"><b>The sentence to remember:</b> "If the customer did not write to me in the last 24 hours, I need an approved template - sent exactly the way it was approved."</div>
+
+  <h3>What a WhatsApp message costs</h3>
+  <p>WhatsApp bills per <b>conversation</b> (a 24-hour window), not per message, and the price depends on who opened it and the category: a <b>marketing</b> template opens the most expensive conversation, a <b>utility</b> template a cheaper one, and a reply inside a window the customer opened is cheaper still. Vonage passes these charges through on your Vonage account. This is why the right category matters, and why a message that is rejected costs nothing.</p>
+  <div class="foot"><span>Vonage Messaging for HubSpot - WhatsApp guide</span><span>2</span></div>
+</div>
+
+<!-- 3 TEMPLATES ANATOMY -->
+<div class="page">
+  <p class="eyebrow">2 - Templates</p>
+  <h2>What a template is made of</h2>
+  <p class="lede">A template is a pre-written message that WhatsApp has read and approved. You can only change the parts you declared as variables. Everything else must go out word for word.</p>
+  <div class="grid2">
+    <div class="chat">
+      <div class="bubble">
+        <div class="h">Lesson cancelled</div>
+        Hi {{1}}, your lesson with {{2}} on {{3}} has been cancelled. Reply to this message to rebook, or open your schedule below.
+        <div class="f">Acme - reply STOP to opt out</div>
+        <div class="b">Open my schedule</div>
+      </div>
+      <p class="small" style="margin:6px 0 0">An example with a header, three body variables, a footer and one button.</p>
+    </div>
+    <div>
+      <dl class="kv">
+        <dt><span class="tag">Name</span></dt><dd><code>lesson_cancelled</code> - lowercase letters, numbers and underscores only. Choose a name that says what it is; you cannot rename it later.</dd>
+        <dt><span class="tag">Language</span></dt><dd>One template <b>per language</b>. <code>en</code>, <code>en_US</code>, <code>pl</code> and <code>en_GB</code> are four different templates, each approved separately.</dd>
+        <dt><span class="tag">Header</span></dt><dd>Optional. Short text (may hold one variable), or an image / document / video.</dd>
+        <dt><span class="tag">Body</span></dt><dd>Required. The message. Variables are written <code>{{1}}</code>, <code>{{2}}</code>, <code>{{3}}</code> in order, never skipping a number.</dd>
+        <dt><span class="tag">Footer</span></dt><dd>Optional small print, e.g. how to opt out. No variables.</dd>
+        <dt><span class="tag">Buttons</span></dt><dd>Optional: quick replies, a website link, a phone number, or a copy-code button.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <h3>Variables: the number one cause of "sent but never arrived"</h3>
+  <p>When you send a template you must supply <b>exactly as many values as the template has variables</b> - no more, no fewer. A template with no variables must be sent with no values at all. WhatsApp first accepts the request and only afterwards rejects it (error 1022, "invalid template or template parameters"), which is why a wrong send can look successful for a moment.</p>
+  <div class="grid2">
+    <div class="callout ok"><b>Right</b><br>Template body: "Hi {{1}}, your lesson on {{2}} is confirmed."<br>Values sent: <code>Anna</code>, <code>Monday 10:00</code> - two variables, two values.</div>
+    <div class="callout bad"><b>Wrong</b><br>Template body: "Hi, your lesson has been cancelled." (no variables)<br>Values sent: <code>Anna</code> - one value for zero variables. Rejected after "sent".</div>
+  </div>
+  <div class="callout"><b>Tip:</b> in HubSpot the Templates card shows each template's text. Count the <code>{{n}}</code> markers before you fill in any variable field. The workflow action now checks this for you and refuses a mismatch with a clear message, but a quick look saves a round trip.</div>
+  <div class="foot"><span>Vonage Messaging for HubSpot - WhatsApp guide</span><span>3</span></div>
+</div>
+
+<!-- 4 CATEGORIES -->
+<div class="page">
+  <p class="eyebrow">3 - Categories, languages, variables</p>
+  <h2>Pick the right category - Meta will check</h2>
+  <p class="lede">The category you choose must match what the message actually says. Meta reads the text and will reject or <b>re-categorise</b> a template whose words do not fit, which changes what you pay.</p>
+  <table>
+    <tr><th>Category</th><th>Use it for</th><th>Example that passes</th><th>Will not pass as this category</th></tr>
+    <tr><td><b>Utility</b><br><span class="small">cheapest</span></td><td>A specific transaction or account update the customer expects: confirmations, changes, reminders, receipts, delivery updates.</td><td>"Your lesson on {{1}} has been moved to {{2}}. Reply to confirm."</td><td>Anything with an offer, a discount, "don't miss", a promotion - even one sentence of it.</td></tr>
+    <tr><td><b>Marketing</b></td><td>Promotions, offers, newsletters, re-engagement, anything that invites a purchase or a visit. Also any message that mixes an update with a promotion.</td><td>"New autumn courses are open - book by Friday and get 10% off."</td><td>Nothing is refused for being marketing; but it costs more and needs clear opt-in.</td></tr>
+    <tr><td><b>Authentication</b></td><td>One-time passcodes only, using Meta's fixed wording with a copy-code button.</td><td>"{{1}} is your verification code."</td><td>Any extra text, links or branding - the wording is fixed by Meta.</td></tr>
+  </table>
+
+  <h3>Languages</h3>
+  <ul>
+    <li>Submit the template in the language the text is actually written in. A Polish text submitted as <code>en_US</code> may be approved but it is confusing later: when sending you must pass <b>the exact code it was approved in</b> (<code>en_US</code> is not <code>en</code>).</li>
+    <li>Need the same message in two languages? Submit the same name twice, once per language. The integration sends the one matching the language you enter.</li>
+    <li>The Templates card in HubSpot shows the language next to each template - copy it from there.</li>
+  </ul>
+
+  <h3>Writing variables that get approved</h3>
+  <ul>
+    <li>Number them in order: <code>{{1}}</code>, <code>{{2}}</code>, <code>{{3}}</code>. Not <code>{{1}}</code> then <code>{{3}}</code>.</li>
+    <li>Never start or end the body with a variable, and never put two variables next to each other with nothing between them - both are automatic rejections.</li>
+    <li>Give Meta realistic sample values when submitting (the integration asks for them). "Anna", "Monday 10:00" - not "test", "xxx" or "123".</li>
+    <li>Keep variables for things that genuinely change (a name, a date, an order number). A template that is <i>only</i> variables ("{{1}} {{2}} {{3}}") is rejected as a blank cheque.</li>
+    <li>Links should be in a button, or a full fixed URL in the text. A variable that is a whole URL is a common rejection reason.</li>
+  </ul>
+  <div class="foot"><span>Vonage Messaging for HubSpot - WhatsApp guide</span><span>4</span></div>
+</div>
+
+<!-- 5 APPROVAL -->
+<div class="page">
+  <p class="eyebrow">4 - Approval</p>
+  <h2>Getting a template approved first time</h2>
+  <p class="lede">Most templates are reviewed automatically within minutes; some take up to 24 hours. A rejection costs you a day, so it is worth getting the submission right.</p>
+
+  <div class="grid2">
+    <div>
+      <h3>Before you press Submit</h3>
+      <ol class="steps">
+        <li><span><b>Read it as the customer.</b> Would you understand who it is from and why you got it, with no other context? Add your brand name if not.</span></li>
+        <li><span><b>Check the category honestly.</b> One promotional sentence makes the whole template Marketing.</span></li>
+        <li><span><b>Check spelling and grammar.</b> Meta rejects templates with obvious errors or odd formatting (ALL CAPS, lots of !!!, emoji walls).</span></li>
+        <li><span><b>Check the variables.</b> In order, not first or last, not adjacent, with realistic samples.</span></li>
+        <li><span><b>Marketing? Add a way out.</b> A footer like "Reply STOP to unsubscribe" is expected for marketing templates and improves approval odds and quality rating.</span></li>
+        <li><span><b>Submit once.</b> Then wait. Submitting the same name again while the first is under review produces an "already exists" error on the card - it does not speed anything up.</span></li>
+      </ol>
+    </div>
+    <div>
+      <h3>What the statuses mean</h3>
+      <table>
+        <tr><td><span class="tag warn">Pending</span></td><td>Under review. Usually minutes, up to 24 h. Do nothing.</td></tr>
+        <tr><td><span class="tag ok">Approved</span></td><td>Ready to send, in that language only.</td></tr>
+        <tr><td><span class="tag bad">Rejected</span></td><td>Meta gives a reason (shown on the card). Fix the text and submit under a <b>new name</b> or edit and resubmit - do not just resend the same text.</td></tr>
+        <tr><td><span class="tag warn">Paused</span></td><td>Meta paused it because customers blocked or reported it. Stop using it; after the pause ends, rewrite before reuse.</td></tr>
+        <tr><td><span class="tag bad">Disabled</span></td><td>Paused three times, or a policy breach. Cannot be used again - create a new, different one.</td></tr>
+        <tr><td><span class="tag">Error</span></td><td>The integration could not submit (duplicate name, bad variable, missing sample). The card shows the exact message.</td></tr>
+      </table>
+      <h3>Common rejection reasons</h3>
+      <ul>
+        <li>Promotional words in a Utility template</li>
+        <li>Variables at the start/end, adjacent, or out of order</li>
+        <li>Placeholder samples like "test" or "{{1}}" left in</li>
+        <li>Links to shortened URLs (bit.ly etc.) or to a different brand's domain</li>
+        <li>Text that could be abusive, misleading, or asks for sensitive data (passwords, card numbers)</li>
+        <li>Too vague: "Hello, click here"</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout warn"><b>Quality rating:</b> WhatsApp scores your number Green / Yellow / Red from customer reactions in the last 7 days (blocks, reports, "not interested"). Low quality lowers your daily sending limit and pauses templates. Only message people who opted in, make opting out easy, and do not re-send the same marketing template to the same people repeatedly.</div>
+  <div class="foot"><span>Vonage Messaging for HubSpot - WhatsApp guide</span><span>5</span></div>
+</div>
+
+<!-- 6 USING THE INTEGRATION -->
+<div class="page">
+  <p class="eyebrow">5 - In HubSpot</p>
+  <h2>Using the Vonage integration day to day</h2>
+  <p class="lede">Everything runs on your own Vonage account and WhatsApp number. Set up once by an admin; after that the cards on each contact do the work.</p>
+
+  <h3>One-time setup (admin)</h3>
+  <p>Marketplace › Connected apps › Vonage Messaging › <b>Settings</b>. Enter the Vonage API key and secret, the Application ID and private key, and the WhatsApp number. The WhatsApp Business Account is detected automatically from the number. Save & verify. Until this is done every card says "not configured".</p>
+
+  <div class="grid2">
+    <div class="card">
+      <h4>Templates card</h4>
+      <p>Lists every template on your WhatsApp Business Account with its language and live status. From here you can <b>submit</b> a new template (name, language, category, text with variables and sample values, optional header image), <b>send</b> an approved one to the contact you are on, and <b>delete</b> one from the account (permanent, every language).</p>
+    </div>
+    <div class="card">
+      <h4>Send card (New message)</h4>
+      <p>Free text, images and files to the contact. Works only inside an open 24-hour window - if the customer has not written recently, use a template instead. Choose the channel (WhatsApp, SMS, RCS) at the top.</p>
+    </div>
+    <div class="card">
+      <h4>Inbox card</h4>
+      <p>Replies arrive here and on the contact timeline. A reply from the customer <b>opens a new 24-hour window</b>, so you can answer with free text. Watch for "STOP" and honour it.</p>
+    </div>
+    <div class="card">
+      <h4>Timeline notes</h4>
+      <p>Every send - manual or from a workflow - is logged as a note on the contact ("[WHATSAPP sent] template ..."). Use it to see what a contact already received before sending again.</p>
+    </div>
+  </div>
+
+  <h3>Sending a template to one contact</h3>
+  <ol class="steps">
+    <li><span><b>Open the contact and its Templates card.</b> Only <span class="tag ok">Approved</span> templates can be sent.</span></li>
+    <li><span><b>Pick the template and language.</b> Read its text; count the <code>{{n}}</code> markers.</span></li>
+    <li><span><b>Fill exactly that many values, in order.</b> None at all if the template has none.</span></li>
+    <li><span><b>Send.</b> Then check the contact's timeline a minute later - "delivered" or "read" means it arrived; a rejection shows the reason.</span></li>
+  </ol>
+  <div class="callout"><b>Phone numbers:</b> the contact needs a mobile number in international format in the <b>Mobile phone number</b> field (the integration tries Mobile first, then Phone). <code>+48 533 507 739</code> is fine; a landline or a number that is not on WhatsApp is not, and the message will not arrive.</div>
+  <div class="foot"><span>Vonage Messaging for HubSpot - WhatsApp guide</span><span>6</span></div>
+</div>
+
+<!-- TOUR 1 -->
+<div class="page">
+  <p class="eyebrow">6 - Where everything is</p>
+  <h2>The Vonage tab on a contact</h2>
+  <p class="lede">Open any contact and click the <b>Vonage</b> tab in the middle column. Three cards stack there: Inbox, Templates &amp; Campaigns, and Messaging (send + call). Below, each card as it looks in HubSpot.</p>
+  <div class="shot wide">
+    <ol style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:6px">
+      <li><span class="n">1</span><span><b>Vonage tab</b> - next to Catch-up and Activities on every contact, company or deal record (contacts are where you will use it).</span></li>
+      <li><span class="n">2</span><span><b>Inbox</b> - every conversation across WhatsApp, RCS and SMS, newest first, with the unread count.</span></li>
+      <li><span class="n">3</span><span><b>Phone number</b> on the left panel - the integration uses Mobile first, then Phone. Keep it in +international format.</span></li>
+      <li><span class="n">4</span><span><b>Settings</b> link at the bottom of each card jumps to the connection page (page 9).</span></li>
+    </ol>
+  </div>
+  <div class="shot">
+    <div><p class="ptitle">Inbox card</p>
+    <ol>
+      <li><span class="n">1</span><span><b>Inbox · N unread</b> - across the whole account, not only this contact. Refresh re-reads it.</span></li>
+      <li><span class="n">2</span><span><b>Channel filter</b> - All channels, or WhatsApp / RCS / SMS only.</span></li>
+      <li><span class="n">3</span><span><b>Conversation rows</b> - name or number, how many new messages, the last text, channel and time. Click one to read the full history and reply. (Names pixelated in this guide.)</span></li>
+      <li><span class="n">4</span><span>A customer message here <b>opens a 24-hour window</b> - you can answer with free text from the Messaging card.</span></li>
+    </ol></div>
+  </div>
+  <div class="foot"><span>Vonage Messaging for HubSpot - WhatsApp guide</span><span>7</span></div>
+</div>
+
+<!-- TOUR 2 -->
+<div class="page">
+  <p class="eyebrow">6 - Where everything is</p>
+  <h2>Templates, sending and calling</h2>
+  <div class="shot">
+    <div><p class="ptitle">Templates &amp; Campaigns card</p>
+    <ol>
+      <li><span class="n">1</span><span><b>View switch</b> (top right): <i>Templates</i> (this list), <i>New / edit</i> (build and submit one), <i>Campaign</i> (send one template to many contacts), <i>Dialer</i> (make a call).</span></li>
+      <li><span class="n">2</span><span><b>Summary line</b> - how many templates exist on your WhatsApp Business Account and how many are approved. This is read live from WhatsApp.</span></li>
+      <li><span class="n">3</span><span><b>Rows</b> - name · language, channel, type, <b>status</b> (approved / pending / rejected) and an <b>Actions</b> menu: send to this contact, submit, delete from the WhatsApp account.</span></li>
+    </ol></div>
+  </div>
+  <div class="shot">
+    <div><p class="ptitle">New / edit - submitting a template</p>
+    <ol>
+      <li><span class="n">1</span><span><b>Channel</b> - choose WhatsApp (RCS and SMS templates live here too).</span></li>
+      <li><span class="n">2</span><span><b>Message type</b> - text, or image / document header.</span></li>
+      <li><span class="n">3</span><span><b>Template name</b> - lowercase_with_underscores; cannot be changed after submission.</span></li>
+      <li><span class="n">4</span><span><b>Body</b> - write <code>{{1}}</code>, <code>{{2}}</code> for variables; you will be asked for a sample value for each. Then Submit for approval and watch the status in the list.</span></li>
+    </ol></div>
+  </div>
+  <div class="shot">
+    <div><p class="ptitle">Messaging card - send a message, or call</p>
+    <ol>
+      <li><span class="n">1</span><span><b>Channel</b> - WhatsApp, RCS or SMS.</span></li>
+      <li><span class="n">2</span><span><b>Approved WhatsApp template</b> - pick one, or "Free text (24h window only)". Picking a template reveals its variable fields.</span></li>
+      <li><span class="n">3</span><span><b>Recipient number</b> - pre-filled from the contact; check it.</span></li>
+      <li><span class="n">4</span><span><b>Send</b> - and <b>Call</b>, which dials this contact from your Vonage voice number straight away (see page 11).</span></li>
+    </ol></div>
+  </div>
+  <div class="foot"><span>Vonage Messaging for HubSpot - WhatsApp guide</span><span>8</span></div>
+</div>
+
+<!-- TOUR 3 SETTINGS -->
+<div class="page">
+  <p class="eyebrow">6 - Where everything is</p>
+  <h2>The Settings page (admin, once)</h2>
+  <p class="lede">Top menu › Marketplace (the puzzle icon) › <b>Connected apps</b> › <b>Vonage Messaging</b> › <b>Settings</b> tab. This is the only place credentials are entered; every card on every record uses them.</p>
+  <div class="shot"><div><p class="ptitle">Connected apps</p><ol>
+    <li><span class="n">1</span><span><b>My Apps</b> lists what is installed on this portal. Click <b>Vonage Messaging</b>.</span></li>
+    <li><span class="n">2</span><span>"Last activity" shows the integration is talking to HubSpot - useful when something seems dead.</span></li>
+  </ol></div></div>
+  <div class="shot"><div><p class="ptitle">Settings - connection</p><ol>
+    <li><span class="n">1</span><span><b>Connected</b> banner - green once credentials were verified against Vonage. Until then the cards say "not configured".</span></li>
+    <li><span class="n">2</span><span><b>Vonage API key and secret</b> - from dashboard.vonage.com (home page). The secret is stored, never shown again.</span></li>
+    <li><span class="n">3</span><span><b>Application ID and private key</b> - the Vonage application your numbers are linked to. (Values blurred here.)</span></li>
+  </ol></div></div>
+  <div class="shot"><div><p class="ptitle">Settings - senders</p><ol>
+    <li><span class="n">1</span><span><b>WhatsApp number</b> - digits only, no +. The number must be linked to the application above in the Vonage dashboard.</span></li>
+    <li><span class="n">2</span><span><b>RCS sender, SMS sender, Voice number</b> - the identities used for the other channels and for calls.</span></li>
+    <li><span class="n">3</span><span><b>WhatsApp Business Account ID</b> - found automatically from the number; it is what lets the Templates card list and submit templates.</span></li>
+    <li><span class="n">4</span><span><b>Save &amp; verify</b> - checks the credentials and wires replies to your Inbox.</span></li>
+  </ol></div></div>
+  <div class="foot"><span>Vonage Messaging for HubSpot - WhatsApp guide</span><span>9</span></div>
+</div>
+
+<!-- WHATSAPP SIDE -->
+<div class="page">
+  <p class="eyebrow">7 - On the customer's phone</p>
+  <h2>What the customer sees on WhatsApp</h2>
+  <p class="lede">The same three situations from page 2, as they look on the handset. Your messages arrive from your business number with its display name and the green verified tick (once Meta has verified the business).</p>
+  <div class="phones">
+    <div>
+      <p class="ptitle">A. Template arrives (no window needed)</p>
+      <div class="phone"><div class="scr">
+        <div class="top"><span class="av"></span>Acme <span class="vf">✓ Business</span></div>
+        <div class="msgs">
+          <div class="sys">This business uses a secure service from Meta to manage this chat.</div>
+          <div class="m"><div class="hd">Odwołana lekcja</div>Cześć, Twoja lekcja z lektorem została anulowana.<div class="ft">Acme · reply STOP to opt out</div><div class="bt">Zobacz grafik</div><div class="t blue">09:54 ✓✓</div></div>
+        </div>
+        <div class="bar"><div class="in">Message</div><div class="snd"></div></div>
+      </div></div>
+      <p class="cap">Header, body, footer and button exactly as approved. Two blue ticks = read; the timeline in HubSpot shows the same.</p>
+    </div>
+    <div>
+      <p class="ptitle">B. Customer replies - window opens</p>
+      <div class="phone"><div class="scr">
+        <div class="top"><span class="av"></span>Acme <span class="vf">✓ Business</span></div>
+        <div class="msgs">
+          <div class="m"><div class="hd">Odwołana lekcja</div>Cześć, Twoja lekcja z lektorem została anulowana.<div class="t blue">09:54 ✓✓</div></div>
+          <div class="m me">Can I move it to Thursday 18:00?<div class="t">09:58</div></div>
+          <div class="m">Yes - Thursday 18:00 with Marta is booked. See you then!<div class="t blue">10:02 ✓✓</div></div>
+          <div class="sys">Free text is possible for 24 h after the customer's last message.</div>
+        </div>
+        <div class="bar"><div class="in">Message</div><div class="snd"></div></div>
+      </div></div>
+      <p class="cap">The reply lands in the HubSpot Inbox and on the timeline. For the next 24 hours you can answer from the Messaging card with free text - no template needed.</p>
+    </div>
+    <div>
+      <p class="ptitle">C. STOP - honour it</p>
+      <div class="phone"><div class="scr">
+        <div class="top"><span class="av"></span>Acme <span class="vf">✓ Business</span></div>
+        <div class="msgs">
+          <div class="m"><div class="hd">Jesienna promocja</div>Nowe kursy od października - zapisz się do piątku i odbierz 10% zniżki.<div class="ft">Acme · reply STOP to opt out</div><div class="t blue">12:10 ✓✓</div></div>
+          <div class="m me">STOP<div class="t">12:11</div></div>
+          <div class="m">You won't receive marketing messages from Acme any more. Reply START to opt back in.<div class="t blue">12:11 ✓✓</div></div>
+        </div>
+        <div class="bar"><div class="in">Message</div><div class="snd"></div></div>
+      </div></div>
+      <p class="cap">A STOP reply must stop marketing to that number. Add the contact to your suppression list / set the WhatsApp consent property to No, so workflows skip them.</p>
+    </div>
+  </div>
+  <div class="callout warn"><b>Why "sent" is not "received":</b> HubSpot shows "sent" when Vonage accepted the message. The ticks (and the delivered / read status on the HubSpot timeline) come a moment later from WhatsApp. If the ticks never appear, look at the timeline for the reason - most often a variable mismatch, a number that is not on WhatsApp, or a customer who blocked the business.</div>
+  <div class="foot"><span>Vonage Messaging for HubSpot - WhatsApp guide</span><span>10</span></div>
+</div>
+
+<!-- CALLING, SMS, RCS -->
+<div class="page">
+  <p class="eyebrow">8 - Calls, SMS and RCS</p>
+  <h2>The other channels, briefly</h2>
+  <div class="shot"><div><p class="ptitle">Calling</p>
+    <ol>
+      <li><span class="n">1</span><span><b>Two ways to call</b>: the <b>Call</b> button on the Messaging card dials the contact's number immediately; the <b>Dialer</b> view (Templates card › view switch › Dialer) lets you type any number.</span></li>
+      <li><span class="n">2</span><span><b>What the customer sees</b>: the <b>Voice number</b> from Settings as caller ID. Choose a number in the customer's country where possible.</span></li>
+      <li><span class="n">3</span><span><b>Where you talk</b>: the call is placed through Vonage and connected to your configured phone/softphone; HubSpot logs "[CALL] placed" on the contact timeline.</span></li>
+      <li><span class="n">4</span><span><b>Before using it</b>: the Voice number must be linked to the Vonage application, and your Vonage account must have voice enabled for the destination country.</span></li>
+    </ol></div></div>
+  <h3>SMS</h3>
+  <div class="grid2">
+    <div class="card"><h4>When</h4><p>Short transactional notices, people without WhatsApp, fallback when a WhatsApp number is not reachable. No 24-hour window, no templates to approve - but sender rules apply per country (some countries require a registered sender ID or a local number).</p></div>
+    <div class="card"><h4>Watch out</h4><p>160 characters per segment (70 with Polish or other accented characters) - long texts cost several segments. Links shorten the message but can hurt deliverability on some networks. Keep an opt-out line for marketing.</p></div>
+  </div>
+  <h3>RCS</h3>
+  <div class="grid2">
+    <div class="card"><h4>When</h4><p>Rich messages (images, cards, buttons, suggested replies) in the phone's native Messages app on Android. Needs an approved RCS agent (the "RCS sender ID" in Settings). Not every handset or carrier supports it yet.</p></div>
+    <div class="card"><h4>Fallback</h4><p>If the phone cannot receive RCS the message is not delivered as RCS - decide in your workflow what happens next (usually an SMS branch). Templates for RCS are built in the same New / edit view with channel = RCS.</p></div>
+  </div>
+  <div class="callout"><b>Rule of thumb:</b> WhatsApp for conversations and anything the customer should reply to; SMS for short one-way notices and as the universal fallback; RCS where you want rich content on Android and have an agent approved. The workflow actions exist for all three: "Send WhatsApp template via Vonage", "Send SMS via Vonage", "Send RCS via Vonage".</div>
+  <div class="foot"><span>Vonage Messaging for HubSpot - WhatsApp guide</span><span>11</span></div>
+</div>
+
+<!-- 7 WORKFLOWS -->
+<div class="page">
+  <p class="eyebrow">9 - Automation</p>
+  <h2>Workflow actions: sending automatically</h2>
+  <p class="lede">In any contact-based workflow you can add the action <b>"Send WhatsApp template via Vonage"</b> (and "Send SMS via Vonage" / "Send RCS via Vonage"). Because nobody is watching when it fires, the fields must be exactly right.</p>
+
+  <div class="grid2">
+    <div>
+      <h3>The fields</h3>
+      <div class="wf">
+        <div class="wh"><span class="ic"></span>Send WhatsApp template via Vonage</div>
+        <div class="wb">
+          <label>Template name *</label><div class="in">zmiana_godziny_lekcji</div><div class="hint">Exactly as on the Templates card - lowercase, underscores.</div>
+          <label>Template language (default: en)</label><div class="in">en_US</div><div class="hint">The code it was approved in, from the Templates card.</div>
+          <label>Variable {{1}}</label><div class="in empty">leave empty - this template has no variables</div>
+          <label>Variable {{2}}</label><div class="in empty"></div>
+          <label>Variable {{3}}</label><div class="in empty"></div>
+          <div class="btns"><span class="b p">Save</span><span class="b">Cancel</span></div>
+        </div>
+      </div>
+      <p class="cap">The action panel as it appears in the workflow editor (illustration). HubSpot tokens such as the contact's first name can be used as variable values when the template has placeholders.</p>
+      <h3>What the action reports back</h3>
+      <table class="rep">
+        <tr><td><code>sent</code></td><td>Vonage accepted it. Delivery is confirmed on the timeline a moment later.</td></tr>
+        <tr><td><code>template_variable_mismatch</code></td><td>You filled too many or too few variables. The message says how many the template expects.</td></tr>
+        <tr><td><code>template_not_approved</code></td><td>That name/language is Pending, Rejected or Paused.</td></tr>
+        <tr><td><code>no_phone_on_contact</code></td><td>The contact has no Mobile/Phone value.</td></tr>
+        <tr><td><code>vonage_not_configured</code></td><td>Settings page not completed for this portal.</td></tr>
+        <tr><td><code>vonage_4xx ...</code></td><td>Vonage refused it; the detail says why (wrong sender, number format...).</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>Before switching a workflow on</h3>
+      <ol class="steps">
+        <li><span><b>Test on yourself.</b> Enrol one contact - your own - and wait for the WhatsApp to arrive before enrolling anyone else.</span></li>
+        <li><span><b>Check the enrolment trigger.</b> A workflow that re-enrols people every time a property changes will message them every time. Add "re-enrolment off" or a suppression list.</span></li>
+        <li><span><b>Respect opt-in.</b> Add a filter: only contacts with WhatsApp consent = yes. For marketing templates this is not optional.</span></li>
+        <li><span><b>Mind the window.</b> Automated sends are almost always outside the 24-hour window, so they must be templates - the action only sends templates for this reason.</span></li>
+        <li><span><b>One template per branch.</b> Do not try to make one template do five jobs with variables; Meta rejects "blank cheque" templates and customers find them odd.</span></li>
+      </ol>
+      <div class="callout bad"><b>What went wrong in the real case:</b> the template "zmiana_godziny_lekcji" has no variables, but the action had a value in Variable {{1}}. HubSpot said "sent" because Vonage accepted the request; WhatsApp then rejected it (error 1022) and nothing arrived. The action now catches this before sending and shows <code>template_variable_mismatch</code> instead.</div>
+    </div>
+  </div>
+  <div class="foot"><span>Vonage Messaging for HubSpot - WhatsApp guide</span><span>12</span></div>
+</div>
+
+<!-- 8 DO / DON'T -->
+<div class="page">
+  <p class="eyebrow">10 - Do and don't</p>
+  <h2>The short list</h2>
+  <table>
+    <tr><th style="width:60px"></th><th>Templates</th></tr>
+    <tr><td class="do">Do</td><td>Write the template as a complete, polite message with your brand name in it. Use realistic sample values. Number variables in order.</td></tr>
+    <tr><td class="dont">Don't</td><td>Start or end with a variable, put variables next to each other, use "test"/"xxx" samples, or mix an offer into a Utility template.</td></tr>
+    <tr><td class="do">Do</td><td>Submit once per language and wait for the status. Note the exact language code.</td></tr>
+    <tr><td class="dont">Don't</td><td>Click Submit repeatedly, or submit a Polish text as <code>en_US</code> "because it was the default".</td></tr>
+    <tr><th></th><th>Sending</th></tr>
+    <tr><td class="do">Do</td><td>Send a template exactly as approved: same name, same language code, exactly as many variables as it has.</td></tr>
+    <tr><td class="dont">Don't</td><td>Fill a variable field "just in case", or send free text to someone who has not written to you in 24 hours.</td></tr>
+    <tr><td class="do">Do</td><td>Check the contact timeline after the first send of any new template - look for delivered/read.</td></tr>
+    <tr><td class="dont">Don't</td><td>Assume "sent" means received. "Sent" means Vonage accepted it; WhatsApp confirms delivery a moment later.</td></tr>
+    <tr><th></th><th>Audience</th></tr>
+    <tr><td class="do">Do</td><td>Message only contacts who opted in to WhatsApp, and honour STOP immediately (the integration records inbound replies; add the contact to a suppression list).</td></tr>
+    <tr><td class="dont">Don't</td><td>Upload a purchased list, re-send the same marketing template to the same people within days, or message at night in the customer's time zone.</td></tr>
+    <tr><td class="do">Do</td><td>Keep the Mobile phone field in international format (+48..., +44...).</td></tr>
+    <tr><td class="dont">Don't</td><td>Rely on the Phone field holding a landline - it will never receive WhatsApp.</td></tr>
+    <tr><th></th><th>Account</th></tr>
+    <tr><td class="do">Do</td><td>Keep the Vonage balance topped up or on auto-reload; keep the display name and profile picture of your WhatsApp number current.</td></tr>
+    <tr><td class="dont">Don't</td><td>Delete a template that a live workflow still uses, or change the WhatsApp number in Settings without telling whoever owns the workflows.</td></tr>
+  </table>
+  <div class="foot"><span>Vonage Messaging for HubSpot - WhatsApp guide</span><span>13</span></div>
+</div>
+
+<!-- 9 TROUBLESHOOTING -->
+<div class="page">
+  <p class="eyebrow">11 - Troubleshooting</p>
+  <h2>When something goes wrong</h2>
+  <table>
+    <tr><th style="width:34%">What you see</th><th>Most likely cause</th><th>What to do</th></tr>
+    <tr><td>"Sent" but the customer got nothing</td><td>Variable count does not match the template (error 1022); or the number is not on WhatsApp; or the customer blocked you; or the template is paused.</td><td>Check the timeline/Inbox for the rejection reason. Count the template's <code>{{n}}</code> and fix the values. Confirm the mobile number is on WhatsApp. Check the template status on the card.</td></tr>
+    <tr><td>Card says "not configured"</td><td>Settings page not completed for this HubSpot portal.</td><td>An admin fills Marketplace › Connected apps › Vonage Messaging › Settings and clicks Save & verify.</td></tr>
+    <tr><td>Template shows "error" after submitting</td><td>Usually a duplicate: the same name was submitted again while already pending or approved ("content in this language already exists").</td><td>Refresh the card - the live status from WhatsApp is shown. If it is Approved, you are done. If you need a change, use a new name.</td></tr>
+    <tr><td>Template "Rejected"</td><td>See the reason on the card: category mismatch, variable placement, samples, links, wording.</td><td>Fix the text per pages 4-5 and submit under a new name.</td></tr>
+    <tr><td>Free text send fails</td><td>No open 24-hour window with that customer.</td><td>Send an approved template instead; when the customer replies, free text works again.</td></tr>
+    <tr><td>Workflow action shows <code>no_phone_on_contact</code></td><td>Contact has no Mobile or Phone value.</td><td>Fill the Mobile phone number, re-enrol.</td></tr>
+    <tr><td>Workflow action shows <code>template_variable_mismatch</code></td><td>Too many or too few variables filled.</td><td>The message states how many the template expects. Adjust and re-enrol.</td></tr>
+    <tr><td>Workflow failed with "bad signature" (401)</td><td>A bug in the integration before 9 October 2026.</td><td>Fixed - re-run the workflow. If it ever reappears, contact Vonage.</td></tr>
+    <tr><td>Messages stopped going out altogether</td><td>Vonage balance at zero, or the WhatsApp number's quality rating dropped and the daily limit is reached.</td><td>Check balance in the Vonage dashboard; check the number's quality and messaging limit in the WhatsApp Business Account.</td></tr>
+  </table>
+
+  <h3>Where to look</h3>
+  <div class="grid3">
+    <div class="card"><h4>Contact timeline (HubSpot)</h4><p>Every send and reply, with the template name. First place to look.</p></div>
+    <div class="card"><h4>Templates card (HubSpot)</h4><p>Live status and rejection reasons from WhatsApp, per language.</p></div>
+    <div class="card"><h4>Vonage dashboard</h4><p>dashboard.vonage.com › Logs › Messages: every message with its final status and error code. Also balance and the WhatsApp number's profile.</p></div>
+  </div>
+  <p class="small" style="margin-top:10px">When you ask for help, include: the contact's number, the template name and language, the time of the send, and what the card or workflow showed. With those four things the cause is usually found in minutes.</p>
+  <div class="foot"><span>Vonage Messaging for HubSpot - WhatsApp guide</span><span>14</span></div>
+</div>
+
+<!-- 10 CHECKLIST -->
+<div class="page">
+  <p class="eyebrow">12 - Pin this</p>
+  <h2>One-page checklist</h2>
+  <div class="grid2">
+    <div>
+      <h3>Creating a template</h3>
+      <ul>
+        <li>Name: lowercase_with_underscores, says what it is</li>
+        <li>Language: the language the text is in; note the exact code</li>
+        <li>Category matches the words (no offers in Utility)</li>
+        <li>Brand name in the text; polite, complete sentences</li>
+        <li>Variables {{1}} {{2}} {{3}} in order, not first/last/adjacent</li>
+        <li>Realistic sample values</li>
+        <li>Marketing: opt-out line in the footer</li>
+        <li>Submit once; wait for Approved</li>
+      </ul>
+      <h3>Sending to one contact</h3>
+      <ul>
+        <li>Customer wrote in the last 24 h? Free text is fine</li>
+        <li>Otherwise: approved template only</li>
+        <li>Count the {{n}} markers; fill exactly that many values</li>
+        <li>Mobile number in +international format</li>
+        <li>Check the timeline for delivered/read</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Workflow action</h3>
+      <ul>
+        <li>Template name copied from the Templates card</li>
+        <li>Language code copied from the Templates card</li>
+        <li>Variables: exactly as many as the template has - all empty if none</li>
+        <li>Filter on WhatsApp opt-in = yes</li>
+        <li>Re-enrolment off unless you mean it</li>
+        <li>Test on your own contact first, wait for the WhatsApp</li>
+      </ul>
+      <h3>Every week</h3>
+      <ul>
+        <li>Vonage balance OK</li>
+        <li>WhatsApp number quality still Green</li>
+        <li>No template Paused or Rejected that a workflow uses</li>
+        <li>STOP replies added to the suppression list</li>
+      </ul>
+      <div class="callout" style="margin-top:14px"><b>Golden rule:</b> send the template exactly as WhatsApp approved it - same name, same language, same number of variables - to someone who asked to hear from you.</div>
+    </div>
+  </div>
+  <div class="foot"><span>Vonage Messaging for HubSpot - WhatsApp guide</span><span>15</span></div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "uid": "vonage_wf_start_flow",
+  "type": "workflow-action",
+  "config": {
+    "actionUrl": "https://YOUR-BACKEND-HOST/2v/api/workflow/flow",
+    "isPublished": true,
+    "supportedClients": [{ "client": "WORKFLOWS" }],
+    "objectTypes": ["CONTACT"],
+    "inputFields": [
+      {
+        "typeDefinition": { "name": "flow", "type": "string", "fieldType": "text" },
+        "supportedValueTypes": ["STATIC_VALUE"],
+        "isRequired": true
+      }
+    ],
+    "outputFields": [
+      { "typeDefinition": { "name": "status", "type": "string", "fieldType": "text" } }
+    ],
+    "labels": {
+      "en": {
+        "actionName": "Start Vonage flow",
+        "actionDescription": "Starts a conversational flow from the Vonage flow builder (WhatsApp, RCS or SMS) for the enrolled contact. The flow sends its first message and then follows the contact's replies.",
+        "actionCardContent": "Start Vonage flow: {{flow}}",
+        "inputFieldLabels": { "flow": "Flow name" },
+        "inputFieldDescriptions": { "flow": "Exactly as it appears in the Vonage flow builder (Templates & Campaigns card > Flows)." },
+        "outputFieldLabels": { "status": "Result" }
+      }
+    }
+  }
+}

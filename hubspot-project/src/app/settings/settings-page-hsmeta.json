@@ -1,0 +1,7 @@
+{
+  "uid": "vonage_settings_page",
+  "type": "settings",
+  "config": {
+    "entrypoint": "/app/settings/SettingsPage.tsx"
+  }
+}
