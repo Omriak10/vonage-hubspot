@@ -1,6 +1,12 @@
 # Backend routes
 
-All routes are under the VCR host. Unless noted, routes take `portalId` (query or body) and act on that portal's stored Vonage credentials. Admin routes need `adminKey` equal to `ADMIN_KEY`.
+All routes are under the backend host. Unless noted, routes take `portalId` (query or body) and act on that portal's stored Vonage credentials. Every `/2v/api` route requires one of: a valid HubSpot v3 request signature (automatic for `hubspot.fetch` from the cards), `Authorization: Bearer <session token>` from `POST /2v/api/session`, or `adminKey` equal to `ADMIN_KEY`. Exempt: the invite status poll, workflow-action executions (own signature check) and admin routes (own key check).
+
+| Route | Purpose |
+|---|---|
+| `POST /2v/api/session {portalId}` | Mint a 12-hour portal-scoped token for the hosted flow builder. Accepted only on a HubSpot-signed request or with `adminKey`. |
+| `GET /2v/api/admin/state?adminKey=&sizes=1`, `POST /2v/api/admin/state {adminKey,data}` | Dump / load the whole state (host migrations). |
+| `POST /2v/api/admin/rewire {adminKey, portalId}` | Re-point a portal's Vonage application webhooks at this host. |
 
 ## Health and hosted pages
 

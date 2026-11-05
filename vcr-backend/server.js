@@ -15,6 +15,16 @@ const crypto = require('crypto');
 const { v4: uuid } = require('uuid');
 
 const app = express();
+// Retired host: when REDIRECT_TO is set (the old VCR instance after the move to AWS) every
+// browser-facing GET is redirected to the new host so old install/guide links keep working;
+// webhooks and API calls are proxied nowhere - they were re-pointed at the new host already.
+if (process.env.REDIRECT_TO) {
+  app.use((req, res, next) => {
+    if (req.path === '/_/health' || req.path === '/_/metrics') return next();
+    if (req.method === 'GET' || req.method === 'HEAD') return res.redirect(308, process.env.REDIRECT_TO.replace(/\/$/, '') + req.originalUrl);
+    res.status(410).json({ error: 'moved', detail: `This service now lives at ${process.env.REDIRECT_TO}` });
+  });
+}
 app.use((req, _res, next) => { if (req.path.startsWith('/2v/api')) console.log(`[req] ${req.method} ${req.path} ct=${req.headers['content-type'] || '-'} len=${req.headers['content-length'] || '-'}`); next(); });
 app.use(express.json({ limit: '16mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
 // ---- Text repair (23 Oct 2026). Polish text from the HubSpot card arrived double-encoded:
@@ -31,6 +41,77 @@ function fixMojibake(str) {
 }
 function fixDeep(v) { if (typeof v === 'string') return fixMojibake(v); if (Array.isArray(v)) return v.map(fixDeep); if (v && typeof v === 'object') { for (const k of Object.keys(v)) v[k] = fixDeep(v[k]); } return v; }
 app.use('/2v/api', (req, res, next) => { try { if (req.body && typeof req.body === 'object') fixDeep(req.body); } catch (e) {} next(); });
+// ---- Portal auth: every /2v/api call must prove which portal it acts for -------------
+// Verified live (5 Nov 2026): hubspot.fetch requests from the cards carry
+// X-HubSpot-Signature-v3 + X-HubSpot-Request-Timestamp (HMAC over METHOD + full URL +
+// body + timestamp with the app's client secret) and HubSpot appends appId, userId and
+// userEmail to the query string, all covered by the signature. So a valid v3 signature
+// with our appId proves the request came from our card inside a HubSpot portal, and the
+// portalId in the query is the one our own card put there.
+// Three ways in:
+//   1. valid HubSpot v3 signature (cards, settings page)        -> portal = query portalId
+//   2. Bearer <session token> minted by POST /2v/api/session    -> portal = token pid
+//      (the hosted flow builder iframe cannot use hubspot.fetch, the card mints a token
+//      for it and passes it in the iframe URL)
+//   3. adminKey (query or body)                                   -> any portal
+// Exempt: HubSpot-called workflow actions (own signature check), the invite status
+// poll, admin routes (own adminKey check). PORTAL_AUTH=log keeps the old open behaviour
+// and only logs; the default is enforce.
+const HS_APP_ID = process.env.HS_APP_ID || '';
+const PORTAL_AUTH = process.env.PORTAL_AUTH || 'enforce';
+const sessionSecret = () => crypto.createHmac('sha256', HS_CLIENT_SECRET || 'dev').update('vh-session').digest();
+function mintSession(pid, hours) {
+  const payload = Buffer.from(JSON.stringify({ pid: String(pid), exp: Date.now() + (hours || 12) * 3600 * 1000 })).toString('base64url');
+  const sig = crypto.createHmac('sha256', sessionSecret()).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+function readSession(token) {
+  try {
+    const [payload, sig] = String(token || '').split('.');
+    const expect = crypto.createHmac('sha256', sessionSecret()).update(payload).digest('base64url');
+    if (!sig || sig.length !== expect.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expect))) return null;
+    const d = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return d.exp > Date.now() ? String(d.pid) : null;
+  } catch { return null; }
+}
+const AUTH_EXEMPT = [/^\/workflow\//, /^\/admin\//, /^\/hschannel\/register$/, /^\/hs\/token-scopes$/, /^\/session$/];
+function requestedPortal(req) {
+  const q = req.query || {}; const b = req.body || {};
+  const v = q.portalId || b.portalId || q.portal || b.portal || '';
+  return Array.isArray(v) ? '' : String(v);
+}
+function portalAuth(req) {
+  const q = req.query || {};
+  const adminKey = q.adminKey || (req.body && req.body.adminKey);
+  if (process.env.ADMIN_KEY && adminKey === process.env.ADMIN_KEY) return { ok: true, via: 'admin' };
+  const want = requestedPortal(req);
+  const bearer = (req.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+  if (bearer) { const pid = readSession(bearer); if (pid && (!want || pid === want)) return { ok: true, via: 'session', pid }; }
+  if (req.get('X-HubSpot-Signature-v3') && wfSignatureOk(req)) {
+    if (HS_APP_ID && q.appId && String(q.appId) !== HS_APP_ID) return { ok: false, why: 'other app' };
+    if (!want) return { ok: false, why: 'no portalId' };
+    return { ok: true, via: 'hubspot', pid: want };
+  }
+  return { ok: false, why: bearer ? 'bad session token' : 'no signature' };
+}
+app.use('/2v/api', (req, res, next) => {
+  if (req.method === 'GET' && /^\/install\/[^/]+$/.test(req.path)) return next();
+  if (AUTH_EXEMPT.some((re) => re.test(req.path))) return next();
+  const a = portalAuth(req);
+  if (a.ok) { req.portalAuth = a; return next(); }
+  console.log(`[auth] DENY ${req.method} ${req.path} portal=${requestedPortal(req) || '-'} why=${a.why} mode=${PORTAL_AUTH}`);
+  if (PORTAL_AUTH !== 'enforce') return next();
+  res.status(401).json({ error: 'unauthorised', detail: 'This endpoint accepts requests from the Vonage Messaging HubSpot app only.' });
+});
+// Short-lived token for the hosted flow builder, minted by the card (HubSpot-signed) only.
+app.post('/2v/api/session', (req, res) => {
+  const pid = requestedPortal(req);
+  if (!pid) return res.status(400).json({ error: 'portalId required' });
+  const a = portalAuth(req);
+  if (!a.ok || (a.via === 'session')) return res.status(401).json({ error: 'unauthorised' });
+  if (a.via === 'hubspot' && a.pid !== pid) return res.status(401).json({ error: 'portal mismatch' });
+  res.json({ ok: true, token: mintSession(pid, 12), expiresIn: 12 * 3600 });
+});
 
 // ---- WhatsApp template preparation for Meta (23 Oct 2026) ----
 // Our editor uses named variables ({{firstname}}) that are filled from the contact at send time.
@@ -79,19 +160,80 @@ const HS_API = 'https://api.hubapi.com';
 const HS_OPTIONAL_SCOPES = (process.env.HS_OPTIONAL_SCOPES || 'conversations.read conversations.custom_channels.read conversations.custom_channels.write crm.objects.custom.read').split(' ');
 const META_GRAPH = 'https://graph.facebook.com/v20.0';
 
-// ---- Persistence: VCR Instance State (whole-doc keys; local mem fallback) ---
-let vcrState = null;
-try { if (isVCR) { const { vcr } = require('@vonage/vcr-sdk'); vcrState = vcr.getInstanceState(); } }
-catch (e) { console.error('[VCR] state init failed, using memory:', e.message); }
+// ---- Persistence: whole-doc keys on one of three backends -------------------
+//   STATE_BACKEND=vcr       VCR Instance State (default when running on VCR)
+//   STATE_BACKEND=dynamodb  one DynamoDB item per key (AWS Lambda hosting); items above
+//                           ~300k chars are split into k#0..n chunk items behind a meta item;
+//                           every item carries a version so concurrent Lambda containers
+//                           cannot silently overwrite each other (see ssetStrict / withRetry)
+//   STATE_BACKEND=memory    local dev
+const STATE_BACKEND = process.env.STATE_BACKEND || (isVCR ? 'vcr' : 'memory');
+const STATE_TABLE = process.env.STATE_TABLE || 'vonage-hubspot-state';
+let vcrState = null, ddb = null, ddbCmd = null;
+try {
+  if (STATE_BACKEND === 'vcr') { const { vcr } = require('@vonage/vcr-sdk'); vcrState = vcr.getInstanceState(); }
+  if (STATE_BACKEND === 'dynamodb') { ddbCmd = require('@aws-sdk/client-dynamodb'); ddb = new ddbCmd.DynamoDBClient({}); }
+} catch (e) { console.error('[state] init failed, using memory:', e.message); }
 const mem = {};
+const _ver = {}; // DynamoDB: version of each key as last read by this container
+const CHUNK = 300000;
+class StateConflict extends Error { constructor(key) { super(`state conflict on ${key}`); this.key = key; this.conflict = true; } }
+async function ddbGet(key) {
+  const r = await ddb.send(new ddbCmd.GetItemCommand({ TableName: STATE_TABLE, Key: { k: { S: key } }, ConsistentRead: true }));
+  if (!r.Item) { _ver[key] = 0; return undefined; }
+  _ver[key] = Number((r.Item.ver && r.Item.ver.N) || 0);
+  if (r.Item.chunks) {
+    const n = Number(r.Item.chunks.N); let s = '';
+    for (let i = 0; i < n; i++) { const c = await ddb.send(new ddbCmd.GetItemCommand({ TableName: STATE_TABLE, Key: { k: { S: `${key}#${i}` } }, ConsistentRead: true })); s += (c.Item && c.Item.v && c.Item.v.S) || ''; }
+    return JSON.parse(s);
+  }
+  return JSON.parse(r.Item.v.S);
+}
+async function ddbSet(key, val) {
+  const s = JSON.stringify(val); const prev = _ver[key] || 0; const next = prev + 1;
+  const cond = prev ? { ConditionExpression: 'ver = :p', ExpressionAttributeValues: { ':p': { N: String(prev) } } } : { ConditionExpression: 'attribute_not_exists(k)' };
+  let item;
+  if (s.length <= CHUNK) item = { k: { S: key }, v: { S: s }, ver: { N: String(next) }, at: { N: String(Date.now()) } };
+  else {
+    const n = Math.ceil(s.length / CHUNK);
+    for (let i = 0; i < n; i++) await ddb.send(new ddbCmd.PutItemCommand({ TableName: STATE_TABLE, Item: { k: { S: `${key}#${i}` }, v: { S: s.slice(i * CHUNK, (i + 1) * CHUNK) }, at: { N: String(Date.now()) } } }));
+    item = { k: { S: key }, chunks: { N: String(n) }, ver: { N: String(next) }, at: { N: String(Date.now()) } };
+  }
+  try { await ddb.send(new ddbCmd.PutItemCommand(Object.assign({ TableName: STATE_TABLE, Item: item }, cond))); }
+  catch (e) { if (e.name === 'ConditionalCheckFailedException') throw new StateConflict(key); throw e; }
+  _ver[key] = next;
+}
 async function sget(key, def) {
   try {
     if (vcrState) { const d = await vcrState.get(key); return d == null ? def : (typeof d === 'string' ? JSON.parse(d) : d); }
+    if (ddb) { const d = await ddbGet(key); return d === undefined ? def : d; }
     return key in mem ? mem[key] : def;
-  } catch (e) { return def; }
+  } catch (e) { console.error('[state] get', key, e.message); return def; }
 }
+// Strict write: throws StateConflict when another container wrote the key since we read it.
+async function ssetStrict(key, val) {
+  if (vcrState) { await vcrState.set(key, JSON.stringify(val)); return; }
+  if (ddb) { await ddbSet(key, val); return; }
+  mem[key] = val;
+}
+// Plain write: last writer wins (refreshes the version once on conflict). Used for the
+// small, rarely written keys; the inbox and flow sessions go through withRetry instead.
 async function sset(key, val) {
-  try { if (vcrState) { await vcrState.set(key, JSON.stringify(val)); } else { mem[key] = val; } } catch (e) { console.error('[state] set', key, e.message); }
+  try { await ssetStrict(key, val); }
+  catch (e) {
+    if (e.conflict && ddb) { try { await ddbGet(key); await ddbSet(key, val); return; } catch (e2) { console.error('[state] set retry', key, e2.message); return; } }
+    console.error('[state] set', key, e.message);
+  }
+}
+// Read-modify-write with retry: fn(doc) mutates the doc; re-read and re-run on conflict.
+async function withRetry(key, fn, def) {
+  for (let i = 0; i < 6; i++) {
+    const doc = await sget(key, def === undefined ? {} : def);
+    const result = await fn(doc);
+    try { await ssetStrict(key, doc); return result; }
+    catch (e) { if (!e.conflict) { console.error('[state] tx', key, e.message); return result; } await new Promise((r) => setTimeout(r, 40 + Math.random() * 120)); }
+  }
+  console.error('[state] tx gave up after retries', key);
 }
 // token store: one doc { [portalId]: tokenObj }
 const getTokens = async () => sget('vh_tokens', {});
@@ -139,12 +281,7 @@ const getInbox = async () => sget('vh_inbox', {});
 // messages (or a send + an inbound) mutate it at the same time.
 let _inboxLock = Promise.resolve();
 function inboxTx(fn) {
-  const run = _inboxLock.then(async () => {
-    const inbox = await getInbox();
-    const result = await fn(inbox);
-    await sset('vh_inbox', inbox);
-    return result;
-  });
+  const run = _inboxLock.then(() => withRetry('vh_inbox', fn, {}));
   _inboxLock = run.then(() => {}, () => {});
   return run;
 }
@@ -583,7 +720,7 @@ async function delFlow(pid, id) { const a = await allFlows(); if (a[pid]) { dele
 // sessions: { [pid]: { [phone]: { flowId, stepId, startedAt, lastTs, vars, contactId, stopped, channel } } }
 let _flowLock = Promise.resolve();
 function flowTx(fn) {
-  const run = _flowLock.then(async () => { const s = await sget('vh_flow_sessions', {}); const r = await fn(s); await sset('vh_flow_sessions', s); return r; });
+  const run = _flowLock.then(() => withRetry('vh_flow_sessions', fn, {}));
   _flowLock = run.then(() => {}, () => {});
   return run;
 }
@@ -892,6 +1029,8 @@ app.get('/2v/oauth/callback', async (req, res) => {
 
 // ---- Self-serve install: GUID invite link + hosted setup page --------------
 app.post('/2v/api/install/new', async (req, res) => {
+  const key = (req.body && req.body.adminKey) || req.query.adminKey;
+  if (!process.env.ADMIN_KEY || key !== process.env.ADMIN_KEY) return res.status(401).json({ error: 'bad admin key' });
   const guid = uuid();
   const inv = { guid, label: (req.body && req.body.label) || '', createdAt: Date.now(), portalId: null, connectedAt: null };
   await putInvite(inv);
@@ -1121,6 +1260,47 @@ app.post('/2v/api/workflow/send', async (req, res) => {
 
 // ---- Templates CRUD --------------------------------------------------------
 // Admin, read-only: Meta's raw record for one WhatsApp template (status, rejection reason, components)
+// Admin: dump / load the whole persisted state (used for host migrations). Keys are the
+// known vh_* whole-doc keys; sizes let you see what is big before moving it.
+const STATE_KEYS = ['vh_tokens', 'vh_connected', 'vh_vonage', 'vh_invites', 'vh_templates', 'vh_inbox', 'vh_flows', 'vh_flow_sessions', 'vh_optouts', 'vh_media', 'vh_hschannel'];
+app.get('/2v/api/admin/state', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.query.adminKey !== process.env.ADMIN_KEY) return res.status(401).json({ error: 'bad admin key' });
+  const out = {}; const sizes = {};
+  for (const k of STATE_KEYS) { const v = await sget(k, null); if (v != null) { out[k] = v; sizes[k] = Buffer.byteLength(JSON.stringify(v)); } }
+  if (req.query.sizes) return res.json({ sizes });
+  res.json({ sizes, data: out });
+});
+app.post('/2v/api/admin/state', async (req, res) => {
+  const { adminKey, data } = req.body || {};
+  if (!process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY) return res.status(401).json({ error: 'bad admin key' });
+  const written = [];
+  for (const [k, v] of Object.entries(data || {})) { if (STATE_KEYS.includes(k)) { await sset(k, v); written.push(k); } }
+  res.json({ ok: true, written });
+});
+// Admin: re-point a portal's Vonage application webhooks at THIS host (after a hosting
+// move). Uses the portal's stored credentials; merge-PUT keeps every other capability.
+app.post('/2v/api/admin/rewire', async (req, res) => {
+  const { adminKey, portalId } = req.body || {};
+  if (!process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY) return res.status(401).json({ error: 'bad admin key' });
+  try {
+    const pid = String(portalId || ''); const creds = await getVonage(pid);
+    if (!creds || !creds.apiKey || !creds.apiSecret || !creds.appId) return res.status(400).json({ error: 'portal has no api key/secret/app stored' });
+    const basic = 'Basic ' + Buffer.from(`${creds.apiKey}:${creds.apiSecret}`).toString('base64');
+    const r = await fetch(`https://api.nexmo.com/v2/applications/${encodeURIComponent(creds.appId)}`, { headers: { Authorization: basic } });
+    if (!r.ok) return res.status(400).json({ error: `application fetch failed (${r.status})` });
+    const appDoc = await r.json(); const caps = appDoc.capabilities || {};
+    caps.messages = caps.messages || {};
+    caps.messages.webhooks = { inbound_url: { address: `${BASE_URL}/2v/webhooks/inbound?portal=${pid}`, http_method: 'POST' }, status_url: { address: `${BASE_URL}/2v/webhooks/status`, http_method: 'POST' } };
+    caps.voice = caps.voice || {};
+    caps.voice.webhooks = { answer_url: { address: `${BASE_URL}/2v/voice/answer?portal=${pid}`, http_method: 'GET' }, event_url: { address: `${BASE_URL}/2v/voice/events`, http_method: 'POST' } };
+    const body = Object.assign({}, appDoc, { capabilities: caps }); delete body._links; delete body.id;
+    const put = await fetch(`https://api.nexmo.com/v2/applications/${encodeURIComponent(creds.appId)}`, { method: 'PUT', headers: { Authorization: basic, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const out = await put.json().catch(() => ({}));
+    if (!put.ok) return res.status(400).json({ error: `PUT failed (${put.status})`, detail: out });
+    creds.webhooksWired = true; await setVonage(pid, creds);
+    res.json({ ok: true, appId: creds.appId, inbound: caps.messages.webhooks.inbound_url.address });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.get('/2v/api/admin/wa-template', async (req, res) => {
   if (!process.env.ADMIN_KEY || req.query.adminKey !== process.env.ADMIN_KEY) return res.status(401).json({ error: 'bad admin key' });
   try {
@@ -1863,4 +2043,11 @@ app.get('/2v/voice/answer', async (req, res) => {
 });
 app.post('/2v/voice/events', (req, res) => res.sendStatus(200));
 
-app.listen(PORT, () => console.log(`vonage-hubspot relay on :${PORT} (VCR=${isVCR}, multi-tenant: every portal uses its own Vonage account)`));
+// On AWS Lambda (function URL / API Gateway v2) export a handler instead of listening.
+if (process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  const serverless = require('serverless-http');
+  module.exports.handler = serverless(app, { binary: ['image/*', 'application/pdf', 'application/octet-stream', 'audio/*', 'video/*'] });
+  console.log(`vonage-hubspot relay as Lambda handler (state=${STATE_BACKEND}, base=${BASE_URL})`);
+} else {
+  app.listen(PORT, () => console.log(`vonage-hubspot relay on :${PORT} (state=${STATE_BACKEND}, multi-tenant: every portal uses its own Vonage account)`));
+}

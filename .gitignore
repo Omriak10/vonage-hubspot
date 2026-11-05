@@ -7,3 +7,7 @@ hubspot.config.yml
 *.log
 .DS_Store
 Thumbs.db
+deploy/aws/config.json
+deploy/aws/lambda.zip
+deploy/aws/node_modules/
+_build_repo.py

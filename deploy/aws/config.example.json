@@ -1,0 +1,13 @@
+{
+  "AWS_PROFILE": "default",
+  "AWS_REGION": "eu-north-1",
+  "DOMAIN": "hubspot.example.com",
+  "HOSTED_ZONE_ID": "Z0000000000000000000",
+  "FUNCTION_NAME": "vonage-hubspot",
+  "TABLE_NAME": "vonage-hubspot-state",
+  "ADMIN_KEY": "change-me-to-a-long-random-string",
+  "HS_CLIENT_ID": "your-hubspot-client-id",
+  "HS_CLIENT_SECRET": "your-hubspot-client-secret",
+  "HS_APP_ID": "your-hubspot-app-id",
+  "PORTAL_AUTH": "enforce"
+}

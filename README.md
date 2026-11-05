@@ -7,9 +7,9 @@ Two parts, nothing else:
 | Part | Where it runs | Folder |
 |---|---|---|
 | HubSpot app (UI cards, settings page, workflow actions) | HubSpot (UI Extensions, platform 2026.03) | `hubspot-project/` |
-| Backend (OAuth, credentials, relay to Vonage, inbox, flows) | Vonage Cloud Runtime (VCR) | `vcr-backend/` |
+| Backend (OAuth, credentials, relay to Vonage, inbox, flows) | AWS Lambda behind API Gateway and CloudFront, state in DynamoDB (or Vonage Cloud Runtime) | `vcr-backend/`, `deploy/aws/` |
 
-There is no separate web app and no third-party cloud. All UI lives in HubSpot; the backend is a single Node/Express service on VCR that keeps state in VCR Instance State.
+There is no separate web app. All UI lives in HubSpot; the backend is a single Node/Express service. It runs as an AWS Lambda function (the reference deployment, inside the AWS free tier at small volumes) or on Vonage Cloud Runtime; the state layer picks DynamoDB, VCR Instance State or memory from one environment variable.
 
 ## What you get in HubSpot
 
@@ -30,8 +30,8 @@ Every HubSpot portal brings its own Vonage account. Credentials are entered once
 ## Quick start
 
 1. **Vonage**: create an Application with *Messages* and *Voice* enabled, link your numbers, WhatsApp number and RCS agent to it, download its private key. See [docs/setup.md](docs/setup.md#1-vonage-side).
-2. **Backend**: copy `vcr-backend/vcr.yml.example` to `vcr-backend/vcr.yml`, fill in the values, `npm install`, `vcr deploy`. Note the host URL VCR prints.
-3. **HubSpot app**: replace `https://YOUR-BACKEND-HOST` in `hubspot-project/` with that host, `hs project upload`. Copy the app's Client ID and Client Secret into `vcr.yml` and redeploy.
+2. **Backend on AWS** (recommended): `cd deploy/aws && npm install`, copy `config.example.json` to `config.json` with your domain, Route 53 zone and HubSpot app credentials, run `node setup.js`. It creates the DynamoDB table, the Lambda, an HTTP API, a TLS certificate, a CloudFront distribution and the DNS record, and prints the public URL. Alternative: Vonage Cloud Runtime with `vcr-backend/vcr.yml.example` and `vcr deploy`.
+3. **HubSpot app**: replace `https://YOUR-BACKEND-HOST` in `hubspot-project/` with your domain, `hs project upload`. Copy the app's Client ID, Client Secret and App ID into the backend config and redeploy (`node setup.js --code`).
 4. **Install** the app into a portal from `https://<host>/2v/oauth/install` (or mint a self-serve invite link), add the cards to the contact record view, open the Settings page and connect Vonage.
 5. Open a contact, go to the **Vonage** tab, send a message.
 
@@ -47,19 +47,22 @@ hubspot-project/            HubSpot developer project (upload with the HubSpot C
   src/app/workflow-actions/ the four workflow actions
   src/app/webhooks/         HubSpot webhook subscription
 vcr-backend/
-  server.js                 the whole backend (Express on @vonage/vcr-sdk)
+  server.js                 the whole backend (Express; Lambda handler or plain listener)
   public/install.html       hosted install + guide page  (/2v/install/:guid, /2v/guide)
-  public/flows.html         hosted flow builder         (/2v/flows?portal=<id>)
-  vcr.yml.example           VCR deployment manifest template
+  public/flows.html         hosted flow builder         (/2v/flows?portal=<id>&t=<token>)
+  vcr.yml.example           VCR deployment manifest template (alternative hosting)
+deploy/aws/
+  setup.js                  one-shot AWS deployment (Lambda + API Gateway + CloudFront + DynamoDB + Route 53)
+  config.example.json       its configuration template
 docs/                       setup, user guide, troubleshooting, API, WhatsApp guide
 ```
 
 ## Security notes
 
-- Vonage API secrets and private keys live only in VCR state, per portal. The Settings page shows them masked.
-- Workflow-action executions are verified with HubSpot request signatures (v1, v2 and v3 supported).
-- Admin-only routes require the `ADMIN_KEY` from `vcr.yml`.
-- **Known gap**: the per-portal settings endpoints (`/2v/api/vonage/settings`, `/senders`, `/defaults`) are called by the HubSpot cards and are not yet bound to a HubSpot-signed request. Anyone who knows a portal ID could read the masked settings or overwrite them. Put the backend behind an allow-list or add the HubSpot `hubspot.fetch` JWT check before offering this to untrusted parties. See [docs/troubleshooting.md](docs/troubleshooting.md#security-hardening-before-wider-rollout).
+- Vonage API secrets and private keys live only in the backend's state store, per portal. The Settings page shows them masked.
+- **Every `/2v/api` route is bound to a portal.** A request is accepted only with a valid HubSpot v3 request signature (what `hubspot.fetch` sends from the cards and the settings page; HubSpot signs the full URL including the portal and app IDs it appends), with a short-lived session token that the card mints for the hosted flow builder, or with the `ADMIN_KEY`. Anything else gets 401. Workflow-action executions have their own signature check (v1, v2 and v3).
+- Invite links are minted only with the `ADMIN_KEY`; the invite status poll and the hosted pages are public.
+- Set `HS_APP_ID` so requests signed for a different HubSpot app are rejected; `PORTAL_AUTH=log` turns enforcement into logging for a staged rollout.
 
 ## Known limitations
 
@@ -71,7 +74,7 @@ docs/                       setup, user guide, troubleshooting, API, WhatsApp gu
 
 ## Requirements
 
-- Node 22 (VCR runtime `nodejs22`), the Vonage VCR CLI (`vcr`) and a Vonage API account.
+- Node 22 and an AWS account with a Route 53 hosted zone for your domain (or the Vonage VCR CLI for VCR hosting), plus a Vonage API account.
 - HubSpot developer account with the HubSpot CLI (`hs`), platform version 2026.03 projects.
 - A WhatsApp Business Account on Vonage for WhatsApp, an RCS agent on Vonage for RCS, and Vonage numbers for SMS and voice.
 

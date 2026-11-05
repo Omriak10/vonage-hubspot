@@ -4,12 +4,22 @@
   "config": {
     "actionUrl": "https://YOUR-BACKEND-HOST/2v/api/workflow/send?channel=rcs",
     "isPublished": true,
-    "supportedClients": [{ "client": "WORKFLOWS" }],
-    "objectTypes": ["CONTACT"],
+    "objectTypes": [],
+    "supportedClients": [
+      {
+        "client": "WORKFLOWS"
+      }
+    ],
     "inputFields": [
       {
-        "typeDefinition": { "name": "message", "type": "string", "fieldType": "textarea" },
-        "supportedValueTypes": ["STATIC_VALUE"],
+        "typeDefinition": {
+          "name": "message",
+          "type": "string",
+          "fieldType": "textarea"
+        },
+        "supportedValueTypes": [
+          "STATIC_VALUE"
+        ],
         "isRequired": true
       }
     ],
@@ -18,8 +28,12 @@
         "actionName": "Send RCS via Vonage",
         "actionDescription": "Sends an RCS message to the enrolled contact from your connected Vonage RCS agent.",
         "actionCardContent": "Send RCS via Vonage",
-        "inputFieldLabels": { "message": "Message text" },
-        "inputFieldDescriptions": { "message": "The RCS message sent to the contact." }
+        "inputFieldLabels": {
+          "message": "Message text"
+        },
+        "inputFieldDescriptions": {
+          "message": "The RCS message sent to the contact."
+        }
       }
     }
   }

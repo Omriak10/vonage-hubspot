@@ -67,8 +67,16 @@ Common rejection causes, all handled by the submit path now: variables without e
 
 **Text arrives with mojibake** - a middleware repairs cp1252 double-encoding on every `/2v/api` body when the UTF-8 re-read is clean. Keep it.
 
-## Security hardening before wider rollout
+## Auth (401 unauthorised)
 
-- Bind `/2v/api/vonage/settings`, `/senders`, `/defaults` (and ideally every `/2v/api/*` route the cards call) to the portal of the caller. HubSpot `hubspot.fetch` requests carry an Authorization header set by HubSpot; verify it and compare its portal claim with the `portalId` parameter. The hosted flow builder and install page would need a short-lived token minted by the card instead.
-- `POST /2v/api/install/new` mints invite links without authentication. Low impact (an invite only lets a portal install), but add `ADMIN_KEY` if you want control over who can self-install.
+**A card gets 401 on every call** - the backend could not verify HubSpot's v3 signature. Causes: `HS_CLIENT_SECRET` does not match the app's current client secret; `BASE_URL` differs from the host HubSpot actually called (the signature covers the full URL, so a proxy that rewrites the path or query breaks it); `HS_APP_ID` set to a different app. Set `PORTAL_AUTH=log` to see `[auth] DENY ... why=` lines without blocking.
+
+**The flow builder shows "This builder link has expired"** - the session token in the iframe URL is older than 12 hours or was minted for another portal. Close it and open Flows again from the card.
+
+**`curl` to an API route returns 401** - expected. Add `&adminKey=<ADMIN_KEY>` for administrative checks.
+
+## Security notes
+
 - Rotate `ADMIN_KEY` and the HubSpot client secret if they were ever committed anywhere.
+- Invite links are minted with the `ADMIN_KEY` only; an invite lets a portal install the app, nothing more.
+- The hosted pages (`/2v/guide`, `/2v/install/:guid`, `/2v/flows`) are public HTML; all data they show comes through authenticated API calls.

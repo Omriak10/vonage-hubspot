@@ -3,11 +3,15 @@
   "version": "1.0.0",
   "description": "Vonage<->HubSpot credentials/relay backend (VCR)",
   "main": "server.js",
-  "scripts": { "start": "node server.js" },
+  "scripts": {
+    "start": "node server.js"
+  },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1162.0",
     "@vonage/vcr-sdk": "^2.1.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
+    "serverless-http": "^4.0.0",
     "uuid": "^9.0.1"
   }
 }

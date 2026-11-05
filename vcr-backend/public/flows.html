@@ -136,7 +136,10 @@ const qs = new URLSearchParams(location.search);
 const PID = qs.get('portal') || qs.get('portalId') || '';
 if (qs.get('embed')) document.body.classList.add('embed');
 document.getElementById('portalLbl').textContent = PID ? 'HubSpot portal ' + PID : 'No portal id in the link';
-const api = (p, o) => fetch(p, Object.assign({ headers: { 'Content-Type': 'application/json' } }, o || {})).then(async (r) => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || j.detail || r.statusText); return j; });
+// The card mints a short-lived session token (POST /2v/api/session, HubSpot-signed) and
+// passes it as ?t=; every API call carries it, so this page is scoped to one portal.
+const TOKEN = qs.get('t') || '';
+const api = (p, o) => fetch(p, Object.assign({}, o || {}, { headers: Object.assign({ 'Content-Type': 'application/json' }, TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}, (o && o.headers) || {}) })).then(async (r) => { const j = await r.json().catch(() => ({})); if (r.status === 401) throw new Error('This builder link has expired. Close it and open Flows again from the HubSpot card.'); if (!r.ok) throw new Error(j.error || j.detail || r.statusText); return j; });
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => Math.random().toString(36).slice(2, 8);
 const toast = (t) => { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); };

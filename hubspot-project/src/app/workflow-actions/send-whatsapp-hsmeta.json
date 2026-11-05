@@ -4,32 +4,66 @@
   "config": {
     "actionUrl": "https://YOUR-BACKEND-HOST/2v/api/workflow/send?channel=whatsapp",
     "isPublished": true,
-    "supportedClients": [{ "client": "WORKFLOWS" }],
-    "objectTypes": ["CONTACT"],
+    "objectTypes": [],
+    "supportedClients": [
+      {
+        "client": "WORKFLOWS"
+      }
+    ],
     "inputFields": [
       {
-        "typeDefinition": { "name": "templateName", "type": "string", "fieldType": "text" },
-        "supportedValueTypes": ["STATIC_VALUE"],
+        "typeDefinition": {
+          "name": "templateName",
+          "type": "string",
+          "fieldType": "text"
+        },
+        "supportedValueTypes": [
+          "STATIC_VALUE"
+        ],
         "isRequired": true
       },
       {
-        "typeDefinition": { "name": "language", "type": "string", "fieldType": "text" },
-        "supportedValueTypes": ["STATIC_VALUE"],
+        "typeDefinition": {
+          "name": "language",
+          "type": "string",
+          "fieldType": "text"
+        },
+        "supportedValueTypes": [
+          "STATIC_VALUE"
+        ],
         "isRequired": false
       },
       {
-        "typeDefinition": { "name": "var1", "type": "string", "fieldType": "text" },
-        "supportedValueTypes": ["STATIC_VALUE"],
+        "typeDefinition": {
+          "name": "var1",
+          "type": "string",
+          "fieldType": "text"
+        },
+        "supportedValueTypes": [
+          "STATIC_VALUE"
+        ],
         "isRequired": false
       },
       {
-        "typeDefinition": { "name": "var2", "type": "string", "fieldType": "text" },
-        "supportedValueTypes": ["STATIC_VALUE"],
+        "typeDefinition": {
+          "name": "var2",
+          "type": "string",
+          "fieldType": "text"
+        },
+        "supportedValueTypes": [
+          "STATIC_VALUE"
+        ],
         "isRequired": false
       },
       {
-        "typeDefinition": { "name": "var3", "type": "string", "fieldType": "text" },
-        "supportedValueTypes": ["STATIC_VALUE"],
+        "typeDefinition": {
+          "name": "var3",
+          "type": "string",
+          "fieldType": "text"
+        },
+        "supportedValueTypes": [
+          "STATIC_VALUE"
+        ],
         "isRequired": false
       }
     ],

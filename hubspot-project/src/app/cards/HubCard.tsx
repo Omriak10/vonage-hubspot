@@ -469,7 +469,13 @@ const Flows = ({ portalId, context, actions }: { portalId?: number; context: Crm
     if (!portalId || !objectId) return;
     api(`/2v/api/hs/resolve?portalId=${portalId}&objectType=${objectTypeId}&objectId=${objectId}`).then((d) => { if (d.phone) setTo(String(d.phone)); }).catch(() => {});
   }, [portalId, objectId]);
-  const openBuilder = () => actions.openIframeModal({ uri: `${MW}/2v/flows?portal=${portalId}&embed=1`, width: 1440, height: 900, title: 'Vonage flows', flush: true }, () => load());
+  // The hosted builder cannot use hubspot.fetch, so the card mints a portal-scoped session
+  // token (the backend accepts the mint only on a HubSpot-signed request) and hands it over.
+  const openBuilder = async () => {
+    let t = '';
+    try { const s = await api('/2v/api/session', { method: 'POST', body: { portalId } }); t = s.token || ''; } catch (e) { /* older backend: open without token */ }
+    actions.openIframeModal({ uri: `${MW}/2v/flows?portal=${portalId}&embed=1${t ? `&t=${encodeURIComponent(t)}` : ''}`, width: 1440, height: 900, title: 'Vonage flows', flush: true }, () => load());
+  };
   const start = async (f: FlowRow) => {
     if (!to.trim()) { setNote({ ok: false, msg: 'This record has no phone number.' }); return; }
     setBusy(f.id); setNote(null);

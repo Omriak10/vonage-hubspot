@@ -13,7 +13,35 @@ This walks through a fresh deployment: Vonage account, backend on Vonage Cloud R
 4. Note the **API key** and **API secret** of the account (dashboard home). The secret is shown once when created; if you no longer have it, add a second secret under *Settings > API settings* (two per key).
 5. Webhooks: leave them for now. The backend sets the application's Messages and Voice webhooks automatically when a portal connects (unless you opt out in the Settings page).
 
-## 2. Backend on VCR
+## 2. Backend on AWS (recommended)
+
+Prerequisites: Node 22, an AWS CLI profile with rights to create Lambda, API Gateway, DynamoDB, IAM roles, ACM certificates, CloudFront distributions and Route 53 records, and a Route 53 hosted zone for the domain you will use (for example `hubspot.example.com`).
+
+```bash
+cd deploy/aws
+npm install
+cp config.example.json config.json     # fill in DOMAIN, HOSTED_ZONE_ID, ADMIN_KEY, HubSpot client id/secret/app id
+node setup.js                          # first run: creates everything, waits for the certificate, prints the URLs
+node setup.js --code                   # later: rebuild the zip and update the function code + environment
+```
+
+What it builds, all inside the AWS perpetual free tier at small volumes except the HTTP API after its first year (about $1 per million requests):
+
+| Resource | Role |
+|---|---|
+| DynamoDB table (10 RCU / 10 WCU provisioned) | state: one item per key, versioned, chunked above 300k characters |
+| Lambda `nodejs22.x` arm64, 512 MB, 60 s | the Express app via `serverless-http` |
+| API Gateway HTTP API | public entry point for the function (function URLs can be blocked by account policy) |
+| ACM certificate (us-east-1) + CloudFront | your domain, TLS, all methods, caching disabled, forwards every header except Host |
+| Route 53 A/AAAA alias | `DOMAIN` to the distribution |
+
+The state layer is selected by `STATE_BACKEND` (`dynamodb`, `vcr` or `memory`). Lambda containers may run concurrently; every item carries a version and the inbox and flow-session writes retry on conflict, so concurrent webhooks do not lose updates.
+
+Logs: CloudWatch log group `/aws/lambda/<FUNCTION_NAME>`. Grep for `[wf]`, `[status]`, `[tpl]`, `[auth]`, `[state]`.
+
+Moving an existing deployment: `GET /2v/api/admin/state?adminKey=` on the old host dumps every key, `POST /2v/api/admin/state {adminKey, data}` on the new host loads it, `POST /2v/api/admin/rewire {adminKey, portalId}` re-points a portal's Vonage webhooks at the new host, and `REDIRECT_TO=https://new-host` on the old deployment turns it into a redirect for old links.
+
+## 2b. Backend on Vonage Cloud Runtime (alternative)
 
 Prerequisites: Node 22, the Vonage VCR CLI (`npm i -g @vonage/vcr-cli`, then `vcr configure` with your API key and secret).
 

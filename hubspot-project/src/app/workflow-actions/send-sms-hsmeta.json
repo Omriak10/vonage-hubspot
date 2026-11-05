@@ -4,12 +4,22 @@
   "config": {
     "actionUrl": "https://YOUR-BACKEND-HOST/2v/api/workflow/send?channel=sms",
     "isPublished": true,
-    "supportedClients": [{ "client": "WORKFLOWS" }],
-    "objectTypes": ["CONTACT"],
+    "objectTypes": [],
+    "supportedClients": [
+      {
+        "client": "WORKFLOWS"
+      }
+    ],
     "inputFields": [
       {
-        "typeDefinition": { "name": "message", "type": "string", "fieldType": "textarea" },
-        "supportedValueTypes": ["STATIC_VALUE"],
+        "typeDefinition": {
+          "name": "message",
+          "type": "string",
+          "fieldType": "textarea"
+        },
+        "supportedValueTypes": [
+          "STATIC_VALUE"
+        ],
         "isRequired": true
       }
     ],
@@ -18,8 +28,12 @@
         "actionName": "Send SMS via Vonage",
         "actionDescription": "Sends an SMS to the enrolled contact (mobile number first, then phone) from your connected Vonage account.",
         "actionCardContent": "Send SMS via Vonage",
-        "inputFieldLabels": { "message": "Message text" },
-        "inputFieldDescriptions": { "message": "The SMS body sent to the contact." }
+        "inputFieldLabels": {
+          "message": "Message text"
+        },
+        "inputFieldDescriptions": {
+          "message": "The SMS body sent to the contact."
+        }
       }
     }
   }

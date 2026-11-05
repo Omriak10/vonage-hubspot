@@ -1,0 +1,20 @@
+{
+  "name": "vonage-hubspot-aws-deploy",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Deploys the Vonage Messaging for HubSpot backend to AWS Lambda + API Gateway + CloudFront + DynamoDB",
+  "scripts": {
+    "deploy": "node setup.js",
+    "deploy:code": "node setup.js --code"
+  },
+  "dependencies": {
+    "@aws-sdk/client-acm": "^3.600.0",
+    "@aws-sdk/client-apigatewayv2": "^3.600.0",
+    "@aws-sdk/client-cloudfront": "^3.600.0",
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/client-iam": "^3.600.0",
+    "@aws-sdk/client-lambda": "^3.600.0",
+    "@aws-sdk/client-route-53": "^3.600.0",
+    "@aws-sdk/credential-provider-ini": "^3.600.0"
+  }
+}
