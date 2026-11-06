@@ -295,6 +295,7 @@ async function recordMessage(portalId, phone, msg, opts) {
     if (o.name && !th.name) th.name = o.name;
     if (o.contactId && !th.contactId) th.contactId = o.contactId;
     const m = { id: msg.id || uuid(), dir: o.incoming ? 'in' : 'out', channel: msg.channel || 'sms', type: msg.type || 'text', text: msg.text || '', media: msg.media || '', ts: msg.ts || Date.now() };
+    if (msg.status) m.status = msg.status;
     th.messages.push(m);
     if (th.messages.length > 300) th.messages = th.messages.slice(-300);
     th.channels[m.channel] = true;
@@ -311,6 +312,65 @@ async function recordOutbound(portalId, to, channel, type, text, media) {
     const pids = portalId ? [portalId] : ((await getConnected()).ids || []);
     for (const pid of pids) await recordMessage(pid, to, { channel: channel || 'sms', type: type || 'text', text: text || '', media: media || '' }, { incoming: false });
   } catch (e) { console.error('[inbox] recordOutbound', e.message); }
+}
+
+// ---- Delivery receipts -----------------------------------------------------
+// Vonage posts submitted / delivered / read / rejected / undeliverable to
+// /2v/webhooks/status with nothing but the message_uuid, so every send remembers
+// where that uuid came from: vh_dlr[uuid] = { pid, phone, contactId, noteId, note }.
+// The receipt then stamps the inbox message (status) and rewrites the timeline
+// note the send created ("[WHATSAPP sent] ..." becomes "... - delivered" / "- read").
+// Entries expire after 7 days; a receipt for an unknown uuid is only logged.
+const DLR_RANK = { sent: 0, submitted: 1, delivered: 2, read: 3, rejected: 9, undeliverable: 9, failed: 9 };
+const DLR_LABEL = { delivered: 'delivered', read: 'read', rejected: 'NOT delivered (rejected)', undeliverable: 'NOT delivered (undeliverable)', failed: 'NOT delivered (failed)' };
+let _dlrLock = Promise.resolve();
+function dlrTx(fn) { const run = _dlrLock.then(() => withRetry('vh_dlr', fn, {})); _dlrLock = run.then(() => {}, () => {}); return run; }
+// Every outbound send goes through here: inbox record (keyed by the Vonage uuid),
+// timeline note, and the uuid bookkeeping the status webhook needs. Awaited by the
+// callers on purpose: on Lambda, work left running after the response is frozen.
+async function trackSent(pid, o) {
+  if (!pid || !o || !o.phone) return;
+  const uuid = o.uuid ? String(o.uuid) : '';
+  try {
+    await recordMessage(pid, o.phone, { id: uuid || undefined, channel: o.channel || 'sms', type: o.type || 'text', text: o.text || '', media: o.media || '', status: uuid ? 'sent' : undefined }, { incoming: false, contactId: o.contactId || null });
+  } catch (e) { console.error('[inbox] recordOutbound', e.message); }
+  let noteId = null;
+  if (o.contactId && o.note) {
+    try { noteId = await logNote(pid, o.contactId, o.note); } catch (e) { console.error('[send] logNote failed', e.message); }
+  }
+  if (!uuid) return;
+  try {
+    await dlrTx((m) => {
+      const now = Date.now();
+      for (const [k, v] of Object.entries(m)) if (!v || now - (v.ts || 0) > 7 * 86400000) delete m[k];
+      m[uuid] = { pid: String(pid), phone: digitsOnly(o.phone), contactId: o.contactId || null, noteId, note: o.note || '', ts: now, last: 'sent' };
+    });
+  } catch (e) { console.error('[dlr] track', e.message); }
+}
+async function applyStatus(b) {
+  const uuid = String(b.message_uuid || ''); const st = String(b.status || '').toLowerCase();
+  if (!uuid || !DLR_LABEL[st]) return; // submitted and friends change nothing visible
+  let rec = null;
+  // the receipt can arrive before the send route has finished its bookkeeping
+  for (let i = 0; i < 3 && !rec; i++) { rec = (await sget('vh_dlr', {}))[uuid] || null; if (!rec && i < 2) await new Promise((r) => setTimeout(r, 1000)); }
+  if (!rec) { console.log(`[dlr] ${uuid} ${st}: no send record (not sent through this backend, or older than 7 days)`); return; }
+  if ((DLR_RANK[rec.last] || 0) >= DLR_RANK[st]) return; // never downgrade read -> delivered, never repeat
+  const err = b.error || {};
+  const label = DLR_LABEL[st] + (err.code ? ` - ${err.code}${err.title ? ' ' + err.title : ''}${err.detail ? ': ' + err.detail : ''}` : '');
+  let inboxHit = false;
+  await inboxTx((inbox) => {
+    const th = inbox[rec.pid] && inbox[rec.pid][rec.phone];
+    const m = th && (th.messages || []).find((x) => x.id === uuid);
+    if (!m) return;
+    m.status = st; m.statusTs = Date.now(); if (err.code) m.error = label; inboxHit = true;
+  }).catch((e) => console.error('[dlr] inbox', e.message));
+  let noteOk = null;
+  if (rec.noteId && rec.note) {
+    const r = await hsApi(rec.pid, 'PATCH', `/crm/v3/objects/notes/${rec.noteId}`, { properties: { hs_note_body: `${rec.note} - ${label}` } });
+    noteOk = r.ok; if (!r.ok) console.error(`[dlr] note update failed ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
+  }
+  await dlrTx((m) => { if (m[uuid]) m[uuid].last = st; }).catch(() => {});
+  console.log(`[dlr] ${uuid} -> ${st} portal=${rec.pid} inbox=${inboxHit} note=${rec.noteId ? (noteOk ? 'updated' : 'failed') : 'none'}`);
 }
 
 // ============================================================================
@@ -559,8 +619,10 @@ async function hsApi(portalId, method, p, body) {
   return { ok: r.ok, status: r.status, body: d };
 }
 async function logNote(portalId, contactId, text) {
-  if (!contactId) return;
-  await hsApi(portalId, 'POST', '/crm/v3/objects/notes', { properties: { hs_note_body: text, hs_timestamp: Date.now() }, associations: [{ to: { id: contactId }, types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: 202 }] }] });
+  if (!contactId) return null;
+  const r = await hsApi(portalId, 'POST', '/crm/v3/objects/notes', { properties: { hs_note_body: text, hs_timestamp: Date.now() }, associations: [{ to: { id: contactId }, types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: 202 }] }] });
+  if (!r.ok) throw new Error(`note ${r.status} ${JSON.stringify(r.body).slice(0, 160)}`);
+  return (r.body && r.body.id) || null; // the id lets a delivery receipt update this note later
 }
 // Workflow actions can run on any record (contact, meeting, deal, company, ticket).
 // The phone number lives on the CONTACT, so for any other record follow its
@@ -849,8 +911,7 @@ function liveCtx(pid, creds, to, contactId, flow) {
       const r = await vonageSendPayload(creds, payload);
       const d = describePayload(payload);
       console.log(`[flow ${flow.id}] -> ${to} step=${step && step.name} ok=${r.ok} ${r.ok ? (r.body && r.body.message_uuid) || '' : JSON.stringify(r.body || {}).slice(0, 200)}`);
-      recordOutbound(pid, to, payload.channel, 'text', `[flow ${flow.name}] ${d.text || ''}`.slice(0, 500), d.media || '').catch(() => {});
-      if (contactId) logNote(pid, contactId, `[${payload.channel.toUpperCase()} flow "${flow.name}"] ${(d.text || '').slice(0, 300)}`).catch(() => {});
+      await trackSent(pid, { uuid: r.ok && r.body && r.body.message_uuid, phone: to, channel: payload.channel, type: 'text', text: `[flow ${flow.name}] ${d.text || ''}`.slice(0, 500), media: d.media || '', contactId, note: contactId ? `[${payload.channel.toUpperCase()} flow "${flow.name}"] ${(d.text || '').slice(0, 300)}` : '' });
       if (!r.ok) throw new Error(`vonage ${r.status}: ${JSON.stringify(r.body || {}).slice(0, 200)}`);
     },
     note: (text) => logNote(pid, contactId, text),
@@ -1080,14 +1141,11 @@ app.post('/2v/api/send', async (req, res) => {
     const creds = await vonageCreds(portalId);
     if (!creds) return res.status(400).json(NOT_CONFIGURED);
     const r = await vonageSendPayload(creds, messagePayload(creds, channel || 'whatsapp', to, text));
-    // Respond to the card immediately; log to the timeline in the background so
-    // the HubSpot fetch proxy never waits on the (slower) HubSpot note write.
+    // Inbox record + timeline note + receipt bookkeeping before answering: on Lambda
+    // anything still running after the response is frozen, so "fire and forget" is lost.
+    if (r.ok) await trackSent(portalId, { uuid: r.body && r.body.message_uuid, phone: to, channel: channel || 'whatsapp', type: 'text', text, contactId, note: `[${(channel || 'whatsapp').toUpperCase()} sent] ${text}` });
     res.status(r.ok ? 200 : 502).json(r);
     console.log(`[send] out ok=${r.ok} status=${r.status} ${Date.now() - t0}ms`);
-    if (r.ok) {
-      recordOutbound(portalId, to, channel || 'whatsapp', 'text', text).catch(() => {});
-      if (portalId) logNote(portalId, contactId, `[${(channel || 'whatsapp').toUpperCase()} sent] ${text}`).catch((e) => console.error('[send] logNote failed', e.message));
-    }
   } catch (e) { console.error('[send] error', e.message); if (!res.headersSent) res.status(500).json({ error: e.message }); }
 });
 
@@ -1245,8 +1303,7 @@ app.post('/2v/api/workflow/send', async (req, res) => {
     }
     console.log(`[wf] send ok=${r.ok} status=${r.status}`);
     if (r.ok) {
-      recordOutbound(portalId, phone, channel, 'text', `[workflow] ${summary}`).catch(() => {});
-      logNote(portalId, contactId, `[${channel.toUpperCase()} sent by workflow] ${summary}`).catch(() => {});
+      await trackSent(portalId, { uuid: r.body && r.body.message_uuid, phone, channel, type: 'text', text: `[workflow] ${summary}`, contactId, note: `[${channel.toUpperCase()} sent by workflow] ${summary}` });
       return res.status(200).json({ outputFields: { hs_execution_state: 'SUCCESS', status: 'sent', messageUuid: (r.body && r.body.message_uuid) || '' } });
     }
     // 4xx from Vonage = permanent (bad sender/number); 5xx = let HubSpot retry
@@ -1262,7 +1319,7 @@ app.post('/2v/api/workflow/send', async (req, res) => {
 // Admin, read-only: Meta's raw record for one WhatsApp template (status, rejection reason, components)
 // Admin: dump / load the whole persisted state (used for host migrations). Keys are the
 // known vh_* whole-doc keys; sizes let you see what is big before moving it.
-const STATE_KEYS = ['vh_tokens', 'vh_connected', 'vh_vonage', 'vh_invites', 'vh_templates', 'vh_inbox', 'vh_flows', 'vh_flow_sessions', 'vh_optouts', 'vh_media', 'vh_hschannel'];
+const STATE_KEYS = ['vh_tokens', 'vh_connected', 'vh_vonage', 'vh_invites', 'vh_templates', 'vh_inbox', 'vh_flows', 'vh_flow_sessions', 'vh_optouts', 'vh_media', 'vh_hschannel', 'vh_dlr'];
 app.get('/2v/api/admin/state', async (req, res) => {
   if (!process.env.ADMIN_KEY || req.query.adminKey !== process.env.ADMIN_KEY) return res.status(401).json({ error: 'bad admin key' });
   const out = {}; const sizes = {};
@@ -1506,11 +1563,8 @@ app.post('/2v/api/wa/send-template', async (req, res) => {
     };
     const r = await fetch('https://api.nexmo.com/v1/messages', { method: 'POST', headers: { Authorization: `Bearer ${appJwt(creds)}`, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(payload) });
     const d = await r.json().catch(() => ({}));
+    if (r.ok) await trackSent(portalId, { uuid: d.message_uuid, phone: to, channel: 'whatsapp', type: 'template', text: `Template: ${name}`, contactId, note: `[WHATSAPP sent] template "${name}"` });
     res.status(r.ok ? 200 : r.status).json({ ok: r.ok, status: r.status, body: d });
-    if (r.ok) {
-      recordOutbound(portalId, to, 'whatsapp', 'template', `Template: ${name}`).catch(() => {});
-      if (portalId) logNote(portalId, contactId, `[WHATSAPP sent] template "${name}"`).catch((e) => console.error('[wa] logNote', e.message));
-    }
   } catch (e) { if (!res.headersSent) res.status(500).json({ error: e.message }); }
 });
 
@@ -1554,7 +1608,7 @@ app.post('/2v/api/campaign/send', async (req, res) => {
       if (!rcp.to) { results.push({ to: rcp.to, ok: false, error: 'no number' }); continue; }
       const payload = tpl ? buildFromTemplate(creds, tpl, rcp.to, rcp.vars || {}) : messagePayload(creds, channel || 'sms', rcp.to, fillVars(text || '', rcp.vars || {}));
       const out = await vonageSendPayload(creds, payload);
-      if (out.ok && portalId && rcp.contactId) await logNote(portalId, rcp.contactId, `[${(payload.channel || channel).toUpperCase()} sent] ${tpl ? `template "${tpl.name}"` : (text || '')}`).catch(() => {});
+      if (out.ok) await trackSent(portalId, { uuid: out.body && out.body.message_uuid, phone: rcp.to, channel: payload.channel || channel || 'sms', type: tpl ? (tpl.type || 'text') : 'text', text: tpl ? `Template: ${tpl.name}` : fillVars(text || '', rcp.vars || {}), contactId: rcp.contactId, note: rcp.contactId ? `[${(payload.channel || channel).toUpperCase()} sent] ${tpl ? `template "${tpl.name}"` : (text || '')}` : '' });
       results.push({ to: rcp.to, ok: out.ok, status: out.status, error: out.ok ? undefined : (out.body && (out.body.title || out.body.detail)) });
     }
     res.json({ ok: true, sent: results.filter((r) => r.ok).length, total: results.length, results });
@@ -1578,7 +1632,7 @@ app.post('/2v/api/campaign/wa-template', async (req, res) => {
       const payload = { from: creds.waFrom, to: String(rcp.to).replace(/[^\d]/g, ''), channel: 'whatsapp', message_type: 'custom', custom: { type: 'template', template: { name, language: { policy: 'deterministic', code: language || 'en' }, components } } };
       const r = await fetch('https://api.nexmo.com/v1/messages', { method: 'POST', headers: { Authorization: `Bearer ${appJwt(creds)}`, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(payload) });
       const d = await r.json().catch(() => ({}));
-      if (r.ok && portalId && rcp.contactId) logNote(portalId, rcp.contactId, `[WHATSAPP sent] template "${name}"`).catch(() => {});
+      if (r.ok) await trackSent(portalId, { uuid: d.message_uuid, phone: rcp.to, channel: 'whatsapp', type: 'template', text: `Template: ${name}`, contactId: rcp.contactId, note: rcp.contactId ? `[WHATSAPP sent] template "${name}"` : '' });
       results.push({ to: rcp.to, ok: r.ok, status: r.status, error: r.ok ? undefined : (d && (d.title || d.detail)) });
     }
     res.json({ ok: true, sent: results.filter((x) => x.ok).length, total: results.length, results });
@@ -1681,10 +1735,7 @@ app.post('/2v/api/send-rich', async (req, res) => {
     const creds = await vonageCreds(portalId);
     if (!creds) return res.status(400).json(NOT_CONFIGURED);
     const out = await vonageSendPayload(creds, buildPayload(creds, template, to, vars || {}));
-    if (out.ok) {
-      recordOutbound(portalId, to, template.channel || 'sms', template.type || 'text', fillVars(template.body, vars || {}), mediaUrl(template.mediaUrl)).catch(() => {});
-      if (portalId && contactId) logNote(portalId, contactId, `[${(template.channel || '').toUpperCase()} ${template.type || 'text'} sent]`).catch(() => {});
-    }
+    if (out.ok) await trackSent(portalId, { uuid: out.body && out.body.message_uuid, phone: to, channel: template.channel || 'sms', type: template.type || 'text', text: fillVars(template.body, vars || {}), media: mediaUrl(template.mediaUrl), contactId, note: contactId ? `[${(template.channel || '').toUpperCase()} ${template.type || 'text'} sent]` : '' });
     res.status(out.ok ? 200 : 502).json(out);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -2024,10 +2075,11 @@ app.post('/2v/webhooks/inbound', async (req, res) => {
   res.sendStatus(200);
   try { await handleInbound(req.body || {}, req.query.portal || null); } catch (e) { console.error('[inbound]', e.message); }
 });
-app.post('/2v/webhooks/status', (req, res) => {
+app.post('/2v/webhooks/status', async (req, res) => {
   const b = req.body || {}; const err = b.error || {};
   const line = `[status] ${b.channel || ''} ${b.message_uuid || ''} to=${b.to || ''} ${b.status || ''}${err.code ? ` error=${err.code} ${err.title || ''} ${err.detail || ''}` : ''}`;
   if (/rejected|failed|undeliverable/i.test(b.status || '')) console.error(line); else console.log(line);
+  try { await applyStatus(b); } catch (e) { console.error('[dlr] error', e.message); }
   res.sendStatus(200);
 });
 app.get('/2v/voice/token', async (req, res) => {

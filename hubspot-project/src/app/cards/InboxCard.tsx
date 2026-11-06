@@ -32,7 +32,9 @@ hubspot.extend<'crm.record.tab'>(({ context, actions }: CrmExtensionProps) => (
 type Channel = 'whatsapp' | 'rcs' | 'sms';
 type Filter = 'all' | Channel;
 interface Convo { phone: string; name: string; contactId: string | number | null; lastText: string; lastTs: number; lastChannel: string; channels: string[]; unread: number; count: number }
-interface Msg { id: string; dir: 'in' | 'out'; channel: string; type: string; text: string; media: string; ts: number }
+interface Msg { id: string; dir: 'in' | 'out'; channel: string; type: string; text: string; media: string; ts: number; status?: string; error?: string }
+// Delivery receipt from Vonage for an outbound message (status webhook); 'sent' means accepted only.
+const STATUS_LABEL: Record<string, string> = { delivered: '✓✓ delivered', read: '✓✓ read', rejected: '✗ not delivered', undeliverable: '✗ not delivered', failed: '✗ not delivered' };
 interface Thread { phone: string; name: string; contactId: string | number | null; channels: string[]; messages: Msg[] }
 interface WaTpl { name: string; language: string; varCount: number; bodyText: string }
 
@@ -178,7 +180,7 @@ const InboxCard = ({ context }: CrmExtensionProps) => {
                     {m.text || (m.media ? `[${m.type}] ${m.media}` : `[${m.type}]`)}
                   </Text>
                   <Text variant="microcopy">
-                    {m.dir === 'out' ? 'You' : 'Them'} · {CH_LABEL[m.channel] || m.channel} · {fmtTime(m.ts)}
+                    {m.dir === 'out' ? 'You' : 'Them'}{m.dir === 'out' && m.status && STATUS_LABEL[m.status] ? ` · ${STATUS_LABEL[m.status]}` : ''} · {CH_LABEL[m.channel] || m.channel} · {fmtTime(m.ts)}
                   </Text>
                 </Flex>
               </Flex>
